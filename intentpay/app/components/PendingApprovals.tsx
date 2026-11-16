@@ -37,6 +37,7 @@ export function PendingApprovals({ items, onChanged }: { items: Pending[]; onCha
             {p.agentName ?? "An agent"} wants to pay <strong>{p.merchant}</strong> {dollars(p.amountCents)} ({p.category}).
             You have not paid them before.
           </p>
+          {p.aiNote && <p className="text-xs text-gray-600"><span className="font-semibold">AI check:</span> {p.aiNote}</p>}
           <div className="flex justify-end gap-2">
             <Button look="faint" size="small" disabled={busy === p.id} onClick={() => answer(p.id, "reject")}>Reject</Button>
             <Button look="primary" size="small" disabled={busy === p.id} onClick={() => answer(p.id, "approve")}>Approve</Button>

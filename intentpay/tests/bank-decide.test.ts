@@ -137,3 +137,65 @@ test("customer confirmation is still narrowed by the overall cap", () => {
   assert.equal(d.outcome, "approve_narrower");
   assert.equal(d.approvedAmountCents, 3000);
 });
+
+// ---- AI check: advisory, escalate-only ----
+import { applyAiCheck, STRICTNESS, type AiNote, type Decision } from "../lib/bank-decide.ts";
+
+const approved = (): Decision => decide(base);
+const mismatch = (confidence: number): AiNote => ({ status: "ok", consistent: false, confidence, reason: "Basket does not fit groceries." });
+
+test("AI mismatch with low confidence turns approve into ask_customer", () => {
+  const d = applyAiCheck(approved(), mismatch(0.6));
+  assert.equal(d.outcome, "ask_customer");
+  assert.equal(d.rule, "ai_mismatch_ask");
+  assert.equal(d.approvedAmountCents, undefined);
+});
+
+test("AI mismatch with high confidence turns approve into decline", () => {
+  const d = applyAiCheck(approved(), mismatch(0.93));
+  assert.equal(d.outcome, "decline");
+  assert.equal(d.rule, "ai_mismatch_decline");
+  assert.equal(d.approvedAmountCents, undefined);
+});
+
+test("AI says consistent: outcome unchanged", () => {
+  const before = approved();
+  const d = applyAiCheck(before, { status: "ok", consistent: true, confidence: 0.9, reason: "Fits." });
+  assert.equal(d.outcome, before.outcome);
+  assert.equal(d.approvedAmountCents, before.approvedAmountCents);
+});
+
+test("AI failure or skip leaves the deterministic outcome unchanged", () => {
+  const before = approved();
+  const d = applyAiCheck(before, { status: "skipped", reason: "AI check skipped: timeout" });
+  assert.equal(d.outcome, before.outcome);
+  assert.equal(d.approvedAmountCents, before.approvedAmountCents);
+  assert.equal(d.ai?.status, "skipped");
+});
+
+test("AI can never loosen: no AI result changes a decline or ask_customer into an approval", () => {
+  const declined = decide({ ...base, policy: null });
+  const asked = decide({ ...base, merchant: { name: "Fresh Harvest", category: "groceries" }, merchantStatus: "unknown" });
+  const results: AiNote[] = [
+    { status: "ok", consistent: true, confidence: 1, reason: "Perfect match." },
+    { status: "ok", consistent: false, confidence: 1, reason: "x" },
+    { status: "ok", consistent: false, confidence: 0.1, reason: "x" },
+    { status: "skipped", reason: "x" },
+  ];
+  for (const ai of results) {
+    for (const before of [declined, asked, approved(), decide({ ...base, amountCents: 6000, customerCap: cap(30000, 27000) })]) {
+      const after = applyAiCheck(before, ai);
+      assert.ok(STRICTNESS[after.outcome] >= STRICTNESS[before.outcome], `${before.outcome} -> ${after.outcome}`);
+    }
+  }
+  assert.equal(applyAiCheck(declined, results[0]).outcome, "decline");
+  assert.equal(applyAiCheck(asked, results[0]).outcome, "ask_customer");
+});
+
+test("AI note is attached as advisory on ask_customer without changing it", () => {
+  const asked = decide({ ...base, merchant: { name: "WOOLIES*SYD", category: "groceries" }, merchantStatus: "unknown" });
+  const d = applyAiCheck(asked, { status: "ok", consistent: false, confidence: 0.99, reason: "x" });
+  assert.equal(d.outcome, "ask_customer");
+  assert.equal(d.rule, "unknown_merchant");
+  assert.equal(d.ai?.effect, "advisory");
+});

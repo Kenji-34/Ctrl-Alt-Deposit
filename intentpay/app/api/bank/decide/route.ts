@@ -1,7 +1,10 @@
 // Called by the network on every payment attempt that passes its coarse checks.
 // This is the ONLY decision endpoint the demo and the app UI use.
 import db from "@/lib/db";
-import { runDecision, decisionResponse } from "@/lib/bank-pipeline";
+import { runDecision, computeDecision, decisionResponse, type DecisionRequest } from "@/lib/bank-pipeline";
+import { aiConsistencyCheck } from "@/lib/ai-check";
+import { fetchIntent } from "@/lib/network-client";
+import type { AiNote } from "@/lib/bank-decide";
 import { createHash } from "node:crypto";
 
 export async function POST(request: Request) {
@@ -28,6 +31,48 @@ export async function POST(request: Request) {
       .update(JSON.stringify([amountCents, b.merchant.name, b.merchant.category, currency, description ?? ""]))
       .digest("hex");
 
+    const req: DecisionRequest = {
+      policyId: b.policy_id,
+      token: b.token,
+      agentId: b.agent_id,
+      merchant: { name: b.merchant.name, category: b.merchant.category, abn: b.merchant.abn },
+      amountCents,
+      currency,
+      description,
+      intentRef: typeof b.intent_ref === "string" ? b.intent_ref : undefined,
+      network: b.network && typeof b.network === "object" ? b.network : undefined,
+    };
+
+    // A replay needs no AI call: check for it first.
+    if (requestId) {
+      const prior = db
+        .prepare(`SELECT request_hash, response_json FROM idempotency_records WHERE policy_id = ? AND request_id = ?`)
+        .get(b.policy_id, requestId) as { request_hash: string; response_json: string } | undefined;
+      if (prior) {
+        if (prior.request_hash !== hash) return Response.json({ error: "request_id was already used for a different payment" }, { status: 409 });
+        return Response.json({ ...JSON.parse(prior.response_json), idempotent_replay: true });
+      }
+    }
+
+    // AI check: only if the deterministic rules did not decline. Core fields always; intent details if the
+    // network can supply them by reference (simulated capability). Any failure leaves the rules' outcome alone.
+    let ai: AiNote | undefined;
+    const pre = computeDecision(req);
+    if (pre.policy && pre.decision.outcome !== "decline") {
+      const intent = req.intentRef ? await fetchIntent(req.intentRef) : null;
+      ai = await aiConsistencyCheck({
+        originalPrompt: pre.originalPrompt,
+        policy: pre.policy,
+        merchantName: req.merchant.name,
+        category: req.merchant.category,
+        amountCents,
+        description: description ?? intent?.description,
+        lineItems: intent?.line_items,
+        enrichmentUsed: !!intent,
+      });
+    }
+    req.ai = ai;
+
     // IMMEDIATE takes the write lock up front, so two concurrent payments
     // cannot both read the same spend and jointly breach a cap.
     const run = db.transaction(() => {
@@ -43,15 +88,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const { decision, receiptId, approvalId } = runDecision({
-        policyId: b.policy_id,
-        token: b.token,
-        agentId: b.agent_id,
-        merchant: { name: b.merchant.name, category: b.merchant.category, abn: b.merchant.abn },
-        amountCents,
-        currency,
-        description,
-      });
+      const { decision, receiptId, approvalId } = runDecision(req);
       const body = decisionResponse(decision, receiptId, approvalId);
 
       if (requestId) {

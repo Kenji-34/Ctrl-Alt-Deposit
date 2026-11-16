@@ -62,12 +62,19 @@ export async function activatePolicy(policyId: string): Promise<ActivateResult> 
 }
 
 // Stop a policy at the bank (always) and revoke its token at the network (best effort).
-export async function revokePolicy(policyId: string, reason = "The customer revoked this agent card.") {
+export async function revokePolicy(
+  policyId: string,
+  reason = "The customer revoked this agent card.",
+  opts: { notifyNetwork?: boolean } = {}
+) {
   db.prepare(`UPDATE policies SET status = 'REVOKED' WHERE id = ?`).run(policyId);
 
   const t = getAgentToken(policyId);
   let networkRevoked: boolean | null = null;
-  if (t) {
+  if (t && opts.notifyNetwork === false) {
+    // Demo only: the bank has stopped the policy but the network has not been told yet.
+    networkRevoked = false;
+  } else if (t) {
     try {
       const res = await fetch(`${NETWORK_URL}/tokens/${t.token}/revoke`, {
         method: "POST",
@@ -101,4 +108,46 @@ export async function networkAuthorise(body: unknown) {
     signal: AbortSignal.timeout(8000),
   });
   return res.json();
+}
+
+// ---- Simulated network capabilities (intent lookup by reference, cancel-instruction) ----
+
+export type Intent = { description: string; line_items: string[] };
+
+// The agent registers what it is buying with the network and gets a reference back
+// (like an Order ID). The bank can later fetch the details by that reference.
+export async function registerIntent(intent: Intent): Promise<string | null> {
+  try {
+    const res = await fetch(`${NETWORK_URL}/intents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(intent),
+      signal: AbortSignal.timeout(3000),
+    });
+    return res.ok ? (await res.json()).intent_ref : null;
+  } catch {
+    return null;
+  }
+}
+
+// Optional enrichment. Any failure returns null and the check runs on core fields only.
+export async function fetchIntent(ref: string): Promise<Intent | null> {
+  try {
+    const res = await fetch(`${NETWORK_URL}/intent/${encodeURIComponent(ref)}`, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return { description: String(d.description ?? ""), line_items: Array.isArray(d.line_items) ? d.line_items.map(String) : [] };
+  } catch {
+    return null;
+  }
+}
+
+// Network-side "cancel instruction": stops future credentials but an already-issued one keeps working.
+export async function cancelInstructionAtNetwork(token: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${NETWORK_URL}/tokens/${token}/cancel-instruction`, { method: "POST", signal: AbortSignal.timeout(3000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

@@ -1,7 +1,7 @@
 // Demo only: plays the part of an AI agent trying to pay.
 // Path: this route -> simulated card network /authorise -> bank /api/bank/decide.
 // It never calls the legacy /api/transaction/authorize route.
-import { activatePolicy, networkAuthorise, NETWORK_DOWN } from "@/lib/network-client";
+import { activatePolicy, networkAuthorise, registerIntent, NETWORK_DOWN } from "@/lib/network-client";
 import { randomUUID } from "node:crypto";
 
 export async function POST(request: Request) {
@@ -23,6 +23,16 @@ export async function POST(request: Request) {
     }
     if (!token) return Response.json({ error: "This agent has no card." }, { status: 404 });
 
+    // Optional basket details: registered with the (simulated) network, which gives back a reference.
+    // The bank can fetch the details by that reference, like an order ID. They are not sent in the payment itself.
+    const intentRef =
+      Array.isArray(b.lineItems) || typeof b.intentDescription === "string"
+        ? await registerIntent({
+            description: typeof b.intentDescription === "string" ? b.intentDescription : "",
+            line_items: Array.isArray(b.lineItems) ? b.lineItems.map(String) : [],
+          })
+        : null;
+
     try {
       const result = await networkAuthorise({
         token,
@@ -30,6 +40,7 @@ export async function POST(request: Request) {
         amount,
         currency: "AUD",
         description: typeof b.description === "string" ? b.description : undefined,
+        intent_ref: intentRef ?? undefined,
         request_id: typeof b.requestId === "string" ? b.requestId : randomUUID(),
       });
       return Response.json(result);

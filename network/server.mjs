@@ -8,6 +8,7 @@ const BANK_URL = process.env.BANK_URL || "http://localhost:3000";
 
 const vault = new Map(); // token id -> token record
 const log = []; // newest first
+const intents = new Map(); // intent_ref -> { description, line_items } (simulated Order ID lookup)
 
 function record(entry) {
   log.unshift({ time: new Date().toISOString(), ...entry });
@@ -61,7 +62,19 @@ async function createToken(body) {
     return [403, { approved: false, reason: decision.reason }];
   }
   const id = "tok_" + randomBytes(4).toString("hex");
-  const token = { token: id, card_ref, agent_id, scope, expiry, policy_id, status: "active", created_at: new Date().toISOString() };
+  // Simulated fields, loosely modelled on public descriptions of Visa Intelligent Commerce
+  // (instruction + mandate, validity window, purchase type) and Mastercard Agent Pay
+  // (agentic token bound to a registered agent). Not a live integration.
+  const now = new Date().toISOString();
+  const token = {
+    token: id, card_ref, agent_id, scope, expiry, policy_id, status: "active", created_at: now,
+    instruction_id: "instr_" + randomBytes(4).toString("hex"),
+    instruction_status: "active",
+    mandate_id: "mand_" + randomBytes(4).toString("hex"),
+    purchase_type: body.purchase_type || "autonomous", // human_in_the_loop | autonomous | recurring
+    validity: { from: now, to: expiry },
+    agentic_token: "agtok_" + randomBytes(6).toString("hex"), // bound to agent_id
+  };
   vault.set(id, token);
   record({ type: "provision", token: id, agent_id, result: "issued" });
   return [201, token];
@@ -69,7 +82,7 @@ async function createToken(body) {
 
 // POST /authorise : network checks coarse limits, then asks the bank
 async function authorise(body) {
-  const { token: id, merchant, amount } = body;
+  const { token: id, merchant, amount, intent_ref } = body;
   const t = vault.get(id);
 
   // Network-side coarse checks. Any failure is declined here and the bank is notified.
@@ -96,6 +109,17 @@ async function authorise(body) {
     const d = await callBank("/api/bank/decide", {
       token: id, card_ref: t.card_ref, agent_id: t.agent_id, policy_id: t.policy_id,
       merchant, amount, currency: body.currency || "AUD", description: body.description, request_id: body.request_id,
+      intent_ref,
+      network: {
+        simulated: true,
+        instruction_id: t.instruction_id,
+        instruction_status: t.instruction_status,
+        mandate_id: t.mandate_id,
+        purchase_type: t.purchase_type,
+        agentic_token: t.agentic_token,
+        cryptogram: randomBytes(8).toString("hex"), // one-time, per authorisation
+        intent_ref: intent_ref || null,
+      },
     });
     record({ type: "authorise", token: id, merchant: merchant.name, amount, result: d.outcome, reason: d.reason });
     return [200, { ...d, declined_by: d.outcome === "decline" ? "bank" : undefined }];
@@ -145,8 +169,27 @@ http.createServer(async (req, res) => {
       record({ type: "revoke", token: t.token, agent_id: t.agent_id, result: "revoked" });
       return send(res, 200, t);
     }
+    if (req.method === "POST" && path === "/intents") {
+      const b = await readJson(req);
+      const ref = "ord_" + randomBytes(4).toString("hex");
+      intents.set(ref, { description: String(b.description ?? ""), line_items: Array.isArray(b.line_items) ? b.line_items.map(String) : [] });
+      return send(res, 201, { intent_ref: ref });
+    }
+    if (req.method === "GET" && (m = path.match(/^\/intent\/([\w-]+)$/))) {
+      const i = intents.get(m[1]);
+      return i ? send(res, 200, { intent_ref: m[1], ...i }) : send(res, 404, { error: "unknown intent" });
+    }
+    // Like Visa's cancel-instruction: stops FUTURE credentials, but a credential already issued keeps working.
+    if (req.method === "POST" && (m = path.match(/^\/tokens\/([\w-]+)\/cancel-instruction$/))) {
+      const t = vault.get(m[1]);
+      if (!t) return send(res, 404, { error: "unknown token" });
+      t.instruction_status = "cancelled";
+      record({ type: "cancel-instruction", token: t.token, instruction_id: t.instruction_id, result: "instruction cancelled; issued credential still active" });
+      return send(res, 200, t);
+    }
     if (req.method === "POST" && path === "/reset") {
       vault.clear();
+      intents.clear();
       log.length = 0;
       record({ type: "reset", result: "cleared" });
       return send(res, 200, { ok: true });

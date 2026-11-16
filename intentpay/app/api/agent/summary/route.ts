@@ -65,6 +65,7 @@ export async function GET() {
         reason: r.reason,
         rule: r.rule ?? null,
         limitedBy: r.limited_by ?? null,
+        ai: r.ai_json ? JSON.parse(r.ai_json) : null,
         declinedBy: r.declined_by,
         createdAt: r.created_at,
       }));
@@ -90,6 +91,7 @@ export async function GET() {
       category: p.category,
       amountCents: p.amount_cents,
       createdAt: p.created_at,
+      aiNote: p.ai_note ?? null,
     }));
 
     const registryOut = registry.map((a) => ({

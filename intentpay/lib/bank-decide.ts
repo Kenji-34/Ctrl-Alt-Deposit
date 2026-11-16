@@ -27,7 +27,9 @@ export type Rule =
   | "agent_budget_narrowed"
   | "overall_cap_narrowed"
   | "within_policy"
-  | "customer_confirmed";
+  | "customer_confirmed"
+  | "ai_mismatch_ask"
+  | "ai_mismatch_decline";
 
 // Which limit was the binding one when budget decided the outcome.
 export type LimitedBy = "agent" | "overall";
@@ -63,6 +65,17 @@ export type DecideInput = {
   customerConfirmed?: boolean;
 };
 
+// Advisory result of the AI consistency check. It can only make an outcome stricter.
+export type AiNote = {
+  status: "ok" | "skipped";
+  consistent?: boolean;
+  confidence?: number; // 0..1
+  reason: string;
+  source?: "gemini" | "fixture";
+  enrichmentUsed?: boolean; // intent details fetched from the (simulated) network by reference
+  effect?: "none" | "advisory" | "escalated_to_ask" | "escalated_to_decline";
+};
+
 export type Decision = {
   outcome: Outcome;
   rule: Rule;
@@ -72,6 +85,7 @@ export type Decision = {
   remainingAgentCents?: number;
   remainingOverallCents?: number; // undefined when there is no overall cap
   limitedBy?: LimitedBy;
+  ai?: AiNote;
 };
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -81,7 +95,7 @@ export function decide(i: DecideInput): Decision {
   const { policy, merchant } = i;
 
   if (!policy) {
-    return { outcome: "decline", rule: "no_policy", reason: "There is no active policy for this agent." };
+    return { outcome: "decline", rule: "no_policy", reason: "There is no active policy for this agent. It may have been revoked by the customer." };
   }
   if (policy.needsClarification) {
     return { outcome: "decline", rule: "needs_clarification", reason: "The customer's policy still needs clarification." };
@@ -212,5 +226,45 @@ export function decide(i: DecideInput): Decision {
     remainingBudgetCents: agentLeft,
     remainingAgentCents: agentLeft,
     remainingOverallCents: overallLeft,
+  };
+}
+
+// How strict an outcome is. The AI check may only move an outcome UP this list.
+export const STRICTNESS: Record<Outcome, number> = {
+  approve: 0,
+  approve_narrower: 1,
+  ask_customer: 2,
+  decline: 3,
+};
+
+export const AI_DECLINE_CONFIDENCE = 0.85;
+
+// Apply the AI check to a deterministic decision.
+// Rules: a decline is never touched. A skipped or consistent result changes nothing.
+// A mismatch can turn approve into ask_customer, or into decline when confidence is high.
+// It can never loosen anything. The deterministic rules always run first and always win.
+export function applyAiCheck(d: Decision, ai: AiNote | null | undefined): Decision {
+  if (!ai || d.outcome === "decline") return d;
+  if (ai.status !== "ok" || ai.consistent !== false) return { ...d, ai: { ...ai, effect: "none" } };
+
+  if (d.outcome === "ask_customer") return { ...d, ai: { ...ai, effect: "advisory" } };
+
+  const { approvedAmountCents: _a, remainingBudgetCents: _b, remainingAgentCents: _c, remainingOverallCents: _d, limitedBy: _e, ...rest } = d;
+  void _a; void _b; void _c; void _d; void _e;
+  if ((ai.confidence ?? 0) >= AI_DECLINE_CONFIDENCE) {
+    return {
+      ...rest,
+      outcome: "decline",
+      rule: "ai_mismatch_decline",
+      reason: `AI check: ${ai.reason} The mismatch is clear, so the payment was blocked.`,
+      ai: { ...ai, effect: "escalated_to_decline" },
+    };
+  }
+  return {
+    ...rest,
+    outcome: "ask_customer",
+    rule: "ai_mismatch_ask",
+    reason: `AI check flagged this purchase: ${ai.reason} Asking the customer to confirm before any money moves.`,
+    ai: { ...ai, effect: "escalated_to_ask" },
   };
 }

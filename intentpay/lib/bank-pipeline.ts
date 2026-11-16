@@ -4,7 +4,7 @@
 // MUST be called inside a database transaction (callers use db.transaction().immediate()).
 import db from "@/lib/db";
 import { PolicySchema } from "@/lib/policy-schema";
-import { decide, type Decision } from "@/lib/bank-decide";
+import { decide, applyAiCheck, type AiNote, type Decision, type PolicyLike } from "@/lib/bank-decide";
 import { lookupMerchant } from "@/lib/merchant-lookup";
 import { recordReceipt } from "@/lib/bank-receipts";
 import { windowStart } from "@/lib/budget";
@@ -20,14 +20,18 @@ export type DecisionRequest = {
   currency: string;
   description?: string;
   customerConfirmed?: boolean;
+  intentRef?: string;
+  network?: Record<string, unknown>; // simulated network fields (mandate, cryptogram, ...)
+  ai?: AiNote | null; // result of the AI check, run beforehand (undefined = not run)
 };
 
 type PolicyRow = { policy_json: string; status: string };
 
-export function runDecision(r: DecisionRequest): { decision: Decision; receiptId: string; approvalId?: string } {
+// Read-only: what do the deterministic rules say right now? (Used to decide whether the AI check is worth running.)
+export function computeDecision(r: DecisionRequest): { decision: Decision; policy: PolicyLike | null; originalPrompt: string } {
   const row = db
-    .prepare(`SELECT policy_json, status FROM policies WHERE id = ?`)
-    .get(r.policyId) as PolicyRow | undefined;
+    .prepare(`SELECT policy_json, status, original_prompt FROM policies WHERE id = ?`)
+    .get(r.policyId) as (PolicyRow & { original_prompt: string }) | undefined;
 
   let policy = null;
   if (row && row.status === "ACTIVE") {
@@ -54,6 +58,14 @@ export function runDecision(r: DecisionRequest): { decision: Decision; receiptId
     customerCap: customerCapInput(),
     customerConfirmed: r.customerConfirmed,
   });
+  return { decision, policy, originalPrompt: row?.original_prompt ?? "" };
+}
+
+export function runDecision(r: DecisionRequest): { decision: Decision; receiptId: string; approvalId?: string } {
+  const computed = computeDecision(r);
+  // AI check is advisory and escalate-only. A customer's own confirmation is not second-guessed.
+  const decision = r.customerConfirmed ? computed.decision : applyAiCheck(computed.decision, r.ai);
+  const policy = computed.policy;
 
   const receiptId = recordReceipt({
     token: r.token,
@@ -68,6 +80,9 @@ export function runDecision(r: DecisionRequest): { decision: Decision; receiptId
     declinedBy: decision.outcome === "decline" ? "bank" : undefined,
     rule: decision.rule,
     limitedBy: decision.limitedBy,
+    aiJson: decision.ai ? JSON.stringify(decision.ai) : undefined,
+    networkJson: r.network ? JSON.stringify(r.network) : undefined,
+    intentRef: r.intentRef,
   });
 
   // Same table the legacy authorize route uses, so budgets are shared.
@@ -83,11 +98,12 @@ export function runDecision(r: DecisionRequest): { decision: Decision; receiptId
     approvalId = "appr_" + randomUUID().slice(0, 8);
     db.prepare(`
       INSERT INTO pending_approvals
-      (id, policy_id, token, agent_id, merchant_name, category, amount_cents, currency, description, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+      (id, policy_id, token, agent_id, merchant_name, category, amount_cents, currency, description, status, created_at, receipt_id, ai_note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)
     `).run(
       approvalId, r.policyId, r.token ?? null, r.agentId ?? null, r.merchant.name, r.merchant.category,
-      r.amountCents, r.currency, r.description ?? null, new Date().toISOString()
+      r.amountCents, r.currency, r.description ?? null, new Date().toISOString(), receiptId,
+      decision.ai && decision.ai.status === "ok" ? decision.ai.reason : null
     );
   }
 
@@ -103,6 +119,7 @@ export function decisionResponse(decision: Decision, receiptId: string, approval
     limited_by: decision.limitedBy,
     receipt_id: receiptId,
     approval_id: approvalId,
+    ai: decision.ai,
     approved_amount: d(decision.approvedAmountCents),
     remaining_budget: d(decision.remainingBudgetCents),
     remaining_overall: d(decision.remainingOverallCents),

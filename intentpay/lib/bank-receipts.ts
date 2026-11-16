@@ -21,6 +21,9 @@ db.exec(`
 
 ensureColumn("bank_receipts", "rule", "TEXT");
 ensureColumn("bank_receipts", "limited_by", "TEXT");
+ensureColumn("bank_receipts", "ai_json", "TEXT"); // AI check result (advisory)
+ensureColumn("bank_receipts", "network_json", "TEXT"); // simulated network fields
+ensureColumn("bank_receipts", "intent_ref", "TEXT");
 
 export type ReceiptInput = {
   token?: string;
@@ -35,6 +38,9 @@ export type ReceiptInput = {
   declinedBy?: string;
   rule?: string;
   limitedBy?: string;
+  aiJson?: string;
+  networkJson?: string;
+  intentRef?: string;
 };
 
 export function recordReceipt(r: ReceiptInput): string {
@@ -42,8 +48,8 @@ export function recordReceipt(r: ReceiptInput): string {
   db.prepare(`
     INSERT INTO bank_receipts
     (id, token, policy_id, agent_id, merchant_name, category,
-     amount_cents, approved_cents, outcome, reason, declined_by, created_at, rule, limited_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     amount_cents, approved_cents, outcome, reason, declined_by, created_at, rule, limited_by, ai_json, network_json, intent_ref)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     r.token ?? null,
@@ -58,7 +64,10 @@ export function recordReceipt(r: ReceiptInput): string {
     r.declinedBy ?? null,
     new Date().toISOString(),
     r.rule ?? null,
-    r.limitedBy ?? null
+    r.limitedBy ?? null,
+    r.aiJson ?? null,
+    r.networkJson ?? null,
+    r.intentRef ?? null
   );
   return id;
 }

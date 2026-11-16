@@ -86,6 +86,7 @@ export default function NewAgentCard() {
         period: p.period ?? "once",
         prohibited: p.prohibitedItems?.length ? p.prohibitedItems.join(", ") : DEFAULT_PROHIBITED,
       });
+      if (data.source === "fixture") setNotice("The AI reader is offline, so we filled in what we could from your sentence. Please check every rule.");
       setQuestion(p.needsClarification ? p.clarificationQuestion || "How much can the agent spend?" : "");
     } catch {
       setNotice("We couldn't read that automatically. Please fill in the rules below.");

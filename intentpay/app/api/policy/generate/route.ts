@@ -1,14 +1,17 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { PolicySchema } from "@/lib/policy-schema";
+import { parsePolicyFallback } from "@/lib/policy-fixture";
 
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
+  apiKey: process.env.GEMINI_API_KEY || "missing"
 });
 
 export async function POST(request: Request) {
+  let promptText = "";
   try {
     const body = await request.json();
+    if (typeof body.prompt === "string") promptText = body.prompt;
 
     if (
       typeof body.prompt !== "string" ||
@@ -19,6 +22,13 @@ export async function POST(request: Request) {
         { error: "Please enter a valid instruction" },
         { status: 400 }
       );
+    }
+
+    // No key: use the simple pattern reader so setup still works. The customer edits and confirms anyway.
+    if (!process.env.GEMINI_API_KEY) {
+      return Response.json({
+        status: "DRAFT", source: "fixture", originalPrompt: body.prompt, policy: parsePolicyFallback(body.prompt),
+      });
     }
 
     const response = await ai.models.generateContent({
@@ -109,6 +119,12 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Gemini API error:", error);
 
+    // Gemini failed: fall back to the pattern reader rather than a blank screen.
+    try {
+      if (promptText.trim()) {
+        return Response.json({ status: "DRAFT", source: "fixture", originalPrompt: promptText, policy: parsePolicyFallback(promptText) });
+      }
+    } catch {}
     return Response.json(
       { error: "Failed to generate policy" },
       { status: 500 }

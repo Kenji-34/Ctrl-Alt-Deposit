@@ -132,4 +132,7 @@ db.exec(`
   )
 `);
 
+ensureColumn("pending_approvals", "receipt_id", "TEXT");
+ensureColumn("pending_approvals", "ai_note", "TEXT");
+
 export default db;

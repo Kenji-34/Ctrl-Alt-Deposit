@@ -7,7 +7,11 @@ import { PendingApprovals } from "@/app/components/PendingApprovals";
 import { useSummary } from "@/app/components/useSummary";
 import { dollars } from "@/lib/format";
 
-type Step = { agent: string; merchant: string; category: string; amount: number; description?: string; note: string };
+type Step = {
+  agent: string; merchant: string; category: string; amount: number; description?: string; note: string;
+  kind?: "buy" | "netcancel" | "bankrevoke";
+  lineItems?: string[]; // basket details, registered with the simulated network and fetched by the bank by reference
+};
 
 const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
   {
@@ -33,6 +37,31 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
       { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 25, description: "Gift card bundle", note: "Prohibited item" },
     ],
   },
+  {
+    id: "C",
+    title: "Scene C: cancel at the network vs revoke at the bank",
+    blurb:
+      "Cancelling at the network only stops future credentials, so a card that was already issued keeps working. A bank-side revoke blocks the very next payment. Reset first.",
+    steps: [
+      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 20, note: "Normal purchase" },
+      { kind: "netcancel", agent: "Grocery agent", merchant: "Network", category: "", amount: 0, note: "Cancel the instruction at the network only" },
+      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 20, note: "Already-issued card still works" },
+      { kind: "bankrevoke", agent: "Grocery agent", merchant: "Bank", category: "", amount: 0, note: "Revoke at the bank" },
+      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 20, note: "Blocked immediately" },
+    ],
+  },
+  {
+    id: "D",
+    title: "Scene D: AI consistency check (advisory)",
+    blurb:
+      "The rules decide first. The AI check only runs on payments the rules did not decline, and it can only make the outcome stricter. Reset first. Without a Gemini key a clearly labelled demo fixture stands in.",
+    steps: [
+      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 30, lineItems: ["milk", "bread", "eggs"], note: "Plain groceries: passes" },
+      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 60, lineItems: ["milk", "a blender"], note: "Mixed basket: asks you" },
+      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 90, lineItems: ["55-inch TV"], note: "Right merchant, wrong basket: blocked" },
+      { agent: "Grocery agent", merchant: "WOOLIES*SYD", category: "groceries", amount: 25, lineItems: ["bread", "chicken"], note: "Messy descriptor: asks you, with an AI hint" },
+    ],
+  },
 ];
 
 type Result = {
@@ -43,6 +72,7 @@ type Result = {
   approved?: number;
   declinedBy?: string;
   limitedBy?: string;
+  ai?: { reason: string; source?: string };
   error?: boolean;
 };
 
@@ -58,13 +88,32 @@ export default function DemoPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [next, setNext] = useState<Record<string, number>>({ A: 0, B: 0 });
+  const [next, setNext] = useState<Record<string, number>>({ A: 0, B: 0, C: 0, D: 0 });
 
   async function runStep(sceneId: string, step: Step) {
-    const policy = data?.agents.find((a) => a.agentName === step.agent && a.status === "ACTIVE");
+    const policy = data?.agents.find((a) => a.agentName === step.agent && (a.status === "ACTIVE" || step.kind === undefined) );
     const key = Date.now() + Math.random();
     if (!policy) {
       setResults((r) => [{ key, step, reason: `${step.agent} has no active card. Press Reset demo.`, error: true }, ...r]);
+      return;
+    }
+    if (step.kind === "netcancel" || step.kind === "bankrevoke") {
+      const r = await fetch("/api/demo/revoke", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ policyId: policy.id, mode: step.kind === "netcancel" ? "network_only" : "bank" }),
+      });
+      setResults((rs) => [
+        {
+          key, step, error: !r.ok,
+          reason: step.kind === "netcancel"
+            ? "Instruction cancelled at the network. The card that was already issued is still active."
+            : "Revoked at the bank. The network has not been told yet, but the bank will now refuse every payment.",
+        },
+        ...rs,
+      ]);
+      setNext((n) => ({ ...n, [sceneId]: (n[sceneId] ?? 0) + 1 }));
+      reload();
       return;
     }
     try {
@@ -73,13 +122,13 @@ export default function DemoPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           policyId: policy.id, merchant: step.merchant, category: step.category,
-          amount: step.amount, description: step.description,
+          amount: step.amount, description: step.description, lineItems: step.lineItems,
         }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Purchase failed");
       setResults((r) => [
-        { key, step, outcome: d.outcome, reason: d.reason, approved: d.approved_amount, declinedBy: d.declined_by, limitedBy: d.limited_by },
+        { key, step, outcome: d.outcome, reason: d.reason, approved: d.approved_amount, declinedBy: d.declined_by, limitedBy: d.limited_by, ai: d.ai },
         ...r,
       ]);
     } catch (e) {
@@ -105,7 +154,7 @@ export default function DemoPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Reset failed");
       setResults([]);
-      setNext({ A: 0, B: 0 });
+      setNext({ A: 0, B: 0, C: 0, D: 0 });
       setNotice(
         d.networkReset
           ? "Demo reset. Three agents re-created with a $300 per week overall cap."
@@ -163,12 +212,12 @@ export default function DemoPage() {
             <ol className="space-y-1 text-sm">
               {s.steps.map((st, idx) => (
                 <li key={idx} className={idx < i ? "text-gray-400 line-through" : idx === i ? "font-medium text-gray-900" : "text-gray-600"}>
-                  {st.agent}: {st.merchant} {dollars(st.amount * 100)} ({st.note})
+                  {st.kind ? st.note : `${st.agent}: ${st.merchant} ${dollars(st.amount * 100)} (${st.note})`}
                 </li>
               ))}
             </ol>
             <Button look="primary" size="medium" block disabled={running || done} onClick={() => runNext(s)}>
-              {done ? "Scene finished. Reset to run again" : `Run step ${i + 1}: ${step.merchant}`}
+              {done ? "Scene finished. Reset to run again" : `Run step ${i + 1}: ${step.kind ? step.note : step.merchant}`}
             </Button>
           </Card>
         );
@@ -185,14 +234,17 @@ export default function DemoPage() {
             <li key={r.key}>
               <Card className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-gray-900">{r.step.agent}: {r.step.merchant}</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {dollars(Math.round((r.approved ?? r.step.amount) * 100))}
-                  </span>
+                  <span className="text-sm text-gray-900">{r.step.kind ? r.step.note : `${r.step.agent}: ${r.step.merchant}`}</span>
+                  {!r.step.kind && (
+                    <span className="text-sm font-semibold text-gray-900">
+                      {dollars(Math.round((r.approved ?? r.step.amount) * 100))}
+                    </span>
+                  )}
                 </div>
-                {b ? <Badge color={b.color}>{b.text}</Badge> : <Badge color="danger">Error</Badge>}
+                {b ? <Badge color={b.color}>{b.text}</Badge> : r.step.kind && !r.error ? <Badge color="info">Done</Badge> : <Badge color="danger">Error</Badge>}
                 <p className="text-sm text-gray-700">{r.reason}</p>
                 {r.declinedBy && <p className="text-xs text-gray-500">Declined by the {r.declinedBy}</p>}
+                {r.ai && <p className="text-xs text-gray-600"><span className="font-semibold">AI check:</span> {r.ai.reason}{r.ai.source === "fixture" ? " (demo fixture, no Gemini key)" : ""}</p>}
                 {r.limitedBy && (
                   <p className="text-xs font-medium text-gray-500">
                     Limit applied: {r.limitedBy === "overall" ? "Overall cap (all agents)" : "This agent's budget"}

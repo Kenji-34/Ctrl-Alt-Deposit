@@ -30,6 +30,7 @@ export type Activity = {
   declinedBy: string | null;
   rule?: string | null;
   limitedBy?: "agent" | "overall" | string | null;
+  ai?: { status: string; reason: string; source?: string; effect?: string; enrichmentUsed?: boolean } | null;
   createdAt: string;
 };
 
@@ -48,6 +49,7 @@ export type Pending = {
   category: string;
   amountCents: number;
   createdAt: string;
+  aiNote?: string | null;
 };
 
 export type RegistryAgent = { id: string; name: string; status: string; activeMandates: number };

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/app/components/ui";
 import { dollars } from "@/lib/format";
 import type { Activity } from "./types";
@@ -44,6 +45,13 @@ export function ActivityList({ items }: { items: Activity[] }) {
                   </div>
                   <Badge color={l.color}>{l.text}</Badge>
                   <p className="text-sm text-gray-700">{a.reason}</p>
+                  <Link href={`/audit/${a.id}`} className="text-xs font-medium text-text-primary underline">View receipt</Link>
+                  {a.ai && (
+                    <p className="text-xs text-gray-600">
+                      <span className="font-semibold">AI check:</span> {a.ai.reason}
+                      {a.ai.source === "fixture" ? " (demo fixture, no Gemini key)" : ""}
+                    </p>
+                  )}
                   {a.limitedBy && (a.outcome === "decline" || a.outcome === "approve_narrower") && (
                     <p className="text-xs font-medium text-gray-500">
                       Limit applied: {a.limitedBy === "overall" ? "Overall cap (all agents)" : "This agent's budget"}
