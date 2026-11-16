@@ -36,4 +36,16 @@ db.exec(`
 `);
 
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS idempotency_records (
+    policy_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    response_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (policy_id, request_id)
+  )
+`);
+
+
 export default db;
