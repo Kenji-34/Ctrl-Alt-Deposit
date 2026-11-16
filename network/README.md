@@ -12,7 +12,7 @@ Open http://localhost:4000 for a live view of the vault and activity.
 
 ## Network endpoints (agent / bank UI call these)
 - `POST /tokens` `{ card_ref, agent_id, scope:{categories:[], max_per_txn}, expiry, policy_id }` -> 201 token, or 403 if the bank declines provisioning
-- `POST /authorise` `{ token, merchant:{name, category, flags?}, amount, currency?, description? }` -> `{ outcome: approve | approve_narrower | ask_customer | decline, reason, declined_by?, receipt_id?, approved_amount? }`
+- `POST /authorise` `{ token, merchant:{name, abn?, category}, amount, currency?, description? }` -> `{ outcome: approve | approve_narrower | ask_customer | decline, reason, declined_by?, receipt_id?, approved_amount? }`
 - `POST /tokens/:id/revoke` -> token with status `revoked`
 - `GET /tokens`, `GET /tokens/:id`, `GET /log`
 
@@ -20,6 +20,8 @@ Open http://localhost:4000 for a live view of the vault and activity.
 - `POST /api/bank/approve-provisioning` `{ card_ref, agent_id, scope, expiry, policy_id }` -> `{ approved: bool, reason }`
 - `POST /api/bank/decide` `{ token, card_ref, agent_id, policy_id, merchant, amount, currency, description }` -> `{ outcome, reason, receipt_id, approved_amount? }`
 - `POST /api/bank/decline-notice` `{ token, card_ref, agent_id, policy_id, merchant, amount, reason, declined_by }` -> `{ receipt_id }` (network-side declines, so the bank logs every attempt)
+
+`merchant.category` is what the transaction *claims*; the network only checks it against the token scope. It does not verify who the merchant is. The bank's `/decide` looks the merchant up (name / ABN) in the merchant database and works out lookalike / new-business status itself.
 
 The network checks token exists, active, unexpired, category and per-txn amount first; the bank decides the rest.
 If the bank is unreachable the network fails closed (decline).
