@@ -21,4 +21,19 @@ db.exec(`
   )
 `);
 
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    policy_id TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    merchant TEXT NOT NULL,
+    category TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (policy_id) REFERENCES policies(id)
+  )
+`);
+
+
 export default db;
