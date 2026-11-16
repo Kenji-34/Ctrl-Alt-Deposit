@@ -95,7 +95,7 @@ async function authorise(body) {
   try {
     const d = await callBank("/api/bank/decide", {
       token: id, card_ref: t.card_ref, agent_id: t.agent_id, policy_id: t.policy_id,
-      merchant, amount, currency: body.currency || "AUD", description: body.description,
+      merchant, amount, currency: body.currency || "AUD", description: body.description, request_id: body.request_id,
     });
     record({ type: "authorise", token: id, merchant: merchant.name, amount, result: d.outcome, reason: d.reason });
     return [200, { ...d, declined_by: d.outcome === "decline" ? "bank" : undefined }];
@@ -109,7 +109,7 @@ async function authorise(body) {
 const PAGE = `<!doctype html><meta charset="utf-8"><title>Network token service (mock)</title>
 <style>body{font:14px system-ui;margin:24px;max-width:1000px}table{border-collapse:collapse;width:100%;margin-bottom:24px}
 td,th{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f4f4f4}h2{margin:16px 0 8px}</style>
-<h1>Network token service <small>(mock)</small></h1>
+<h1>Simulated card network <small>(stand-in for a Visa / Mastercard token service)</small></h1>
 <h2>Token vault</h2><table id="v"></table><h2>Activity</h2><table id="l"></table>
 <script>
 function fill(id,cols,rows){const t=document.getElementById(id);t.textContent="";
@@ -144,6 +144,12 @@ http.createServer(async (req, res) => {
       t.status = "revoked";
       record({ type: "revoke", token: t.token, agent_id: t.agent_id, result: "revoked" });
       return send(res, 200, t);
+    }
+    if (req.method === "POST" && path === "/reset") {
+      vault.clear();
+      log.length = 0;
+      record({ type: "reset", result: "cleared" });
+      return send(res, 200, { ok: true });
     }
     if (req.method === "POST" && path === "/authorise") {
       const [s, b] = await authorise(await readJson(req));

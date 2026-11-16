@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Shell } from "@/app/components/Shell";
 import { AgentCard } from "@/app/components/AgentCard";
+import { PendingApprovals } from "@/app/components/PendingApprovals";
+import { AgentRegistry } from "@/app/components/AgentRegistry";
 import { OverallCap } from "@/app/components/OverallCap";
 import { ActivityList } from "@/app/components/ActivityList";
 import { Alert, Button, Card, SectionTitle } from "@/app/components/ui";
@@ -35,12 +37,19 @@ export default function AgentPage() {
 
       {data?.overall && <OverallCap key={`${data.overall.limitCents}-${data.overall.period}`} overall={data.overall} onChanged={reload} />}
 
+      <PendingApprovals items={data?.pending ?? []} onChanged={reload} />
+      {data?.registry && <AgentRegistry agents={data.registry} onChanged={reload} />}
+
       <SectionTitle>Agent cards</SectionTitle>
       {data && data.agents.length === 0 && <p className="text-sm text-gray-600">You have no agent cards yet.</p>}
       {data?.agents.map((a) => <AgentCard key={a.id} agent={a} onChanged={reload} />)}
 
       <SectionTitle>Transactions</SectionTitle>
       <ActivityList items={data?.activity ?? []} />
+
+      <p className="pt-4 text-center text-xs text-gray-500">
+        <Link href="/demo" className="underline">Open the demo scenarios</Link>
+      </p>
     </Shell>
   );
 }

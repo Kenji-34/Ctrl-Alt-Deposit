@@ -15,7 +15,7 @@ const GOALS = [
   { title: "Something else", text: "" },
 ];
 
-const CATEGORIES = ["groceries", "subscriptions", "dining", "transport", "general"];
+const CATEGORIES = ["groceries", "subscriptions", "travel", "dining", "transport", "general"];
 const DEFAULT_PROHIBITED = "gift card, alcohol";
 const TOKEN_DAYS = 30;
 
@@ -47,6 +47,20 @@ export default function NewAgentCard() {
     setExpiry(new Date(Date.now() + TOKEN_DAYS * 24 * 60 * 60 * 1000).toISOString());
   }, []);
   const expiryText = expiry ? shortDate(expiry) : "";
+
+  // Which registered agent this card is for.
+  const [agents, setAgents] = useState<{ id: string; name: string; status: string }[]>([]);
+  const [agentId, setAgentId] = useState("");
+  useEffect(() => {
+    fetch("/api/agent/summary")
+      .then((r) => r.json())
+      .then((d) => {
+        const list = (d.registry ?? []).filter((a: { status: string }) => a.status === "ACTIVE");
+        setAgents(list);
+        if (list.length > 0) setAgentId((cur) => cur || list[0].id);
+      })
+      .catch(() => {});
+  }, []);
 
   function set<K extends keyof Draft>(k: K, v: Draft[K]) {
     setDraft((d) => ({ ...d, [k]: v }));
@@ -108,7 +122,7 @@ export default function NewAgentCard() {
       const saved = await fetch("/api/policy/approve", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ approved: true, originalPrompt: prompt || "Entered by customer", policy }),
+        body: JSON.stringify({ approved: true, originalPrompt: prompt || "Entered by customer", policy, agentId: agentId || undefined }),
       });
       const savedData = await saved.json();
       if (!saved.ok) throw new Error(savedData.error || "Could not save your rules");
@@ -173,6 +187,13 @@ export default function NewAgentCard() {
 
           <h2 className="pt-2 text-base font-semibold text-gray-900">Check the rules</h2>
           <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+            {agents.length > 0 && (
+              <Row label="Which agent is this for?">
+                <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </Select>
+              </Row>
+            )}
             <Row label="Who it can pay (optional)">
               <Input value={draft.merchant} onChange={(e) => set("merchant", e.target.value)} placeholder="e.g. Woolworths" />
             </Row>

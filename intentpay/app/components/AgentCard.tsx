@@ -28,6 +28,7 @@ export function AgentCard({ agent, onChanged }: { agent: Agent; onChanged: () =>
     <Card className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
+          {agent.agentName && <p className="text-xs font-medium uppercase text-gray-500">{agent.agentName}</p>}
           <p className="text-base font-semibold text-gray-900">{who}</p>
           <p className="text-sm text-gray-600">
             Up to {dollars(agent.limitCents)} {periodLabel(agent.period)}

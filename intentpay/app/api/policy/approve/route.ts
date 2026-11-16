@@ -2,6 +2,7 @@
 import db from "@/lib/db";
 import { PolicySchema } from "@/lib/policy-schema";
 import { randomUUID } from "node:crypto";
+import { getAgent } from "@/lib/agents";
 
 export async function POST(request: Request) {
   try {
@@ -41,20 +42,31 @@ export async function POST(request: Request) {
       );
     }
 
+    // Optional: which registered agent this mandate belongs to
+    let agentId: string | null = null;
+    if (body.agentId !== undefined && body.agentId !== null && body.agentId !== "") {
+      const agent = typeof body.agentId === "string" ? getAgent(body.agentId) : undefined;
+      if (!agent || agent.status !== "ACTIVE") {
+        return Response.json({ error: "Unknown or revoked agent" }, { status: 400 });
+      }
+      agentId = agent.id;
+    }
+
     // Give the policy a unique ID
     const id = randomUUID();
 
     // Save it in SQLite
     db.prepare(`
       INSERT INTO policies
-      (id, original_prompt, policy_json, status, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      (id, original_prompt, policy_json, status, created_at, agent_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       id,
       body.originalPrompt,
       JSON.stringify(policy),
       "ACTIVE",
-      new Date().toISOString()
+      new Date().toISOString(),
+      agentId
     );
 
     return Response.json({

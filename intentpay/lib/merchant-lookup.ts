@@ -5,7 +5,10 @@
 //   "unknown"   - not in the database (new business)
 import type { MerchantStatus } from "./bank-decide";
 
-const KNOWN = ["coles", "woolworths", "aldi", "iga"];
+const KNOWN = [
+  "coles", "woolworths", "aldi", "iga",
+  "qantas", "jetstar", "virgin australia", "netflix", "spotify",
+];
 
 function distance(a: string, b: string): number {
   const d = Array.from({ length: a.length + 1 }, (_, i) => [

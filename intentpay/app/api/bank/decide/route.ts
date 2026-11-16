@@ -1,14 +1,8 @@
 // Called by the network on every payment attempt that passes its coarse checks.
+// This is the ONLY decision endpoint the demo and the app UI use.
 import db from "@/lib/db";
-import { PolicySchema } from "@/lib/policy-schema";
-import { decide } from "@/lib/bank-decide";
-import { lookupMerchant } from "@/lib/merchant-lookup";
-import { recordReceipt } from "@/lib/bank-receipts";
-import { windowStart } from "@/lib/budget";
-import { customerCapInput } from "@/lib/customer-limits";
-import { randomUUID } from "node:crypto";
-
-type PolicyRow = { policy_json: string; status: string };
+import { runDecision, decisionResponse } from "@/lib/bank-pipeline";
+import { createHash } from "node:crypto";
 
 export async function POST(request: Request) {
   try {
@@ -26,94 +20,51 @@ export async function POST(request: Request) {
       return Response.json({ error: "Invalid transaction details" }, { status: 400 });
     }
 
+    const currency = typeof b.currency === "string" ? b.currency : "AUD";
+    const description = typeof b.description === "string" ? b.description : undefined;
+    // Optional: a retry with the same request_id returns the same answer and moves no extra money.
+    const requestId = typeof b.request_id === "string" && b.request_id ? "decide:" + b.request_id : null;
+    const hash = createHash("sha256")
+      .update(JSON.stringify([amountCents, b.merchant.name, b.merchant.category, currency, description ?? ""]))
+      .digest("hex");
+
     // IMMEDIATE takes the write lock up front, so two concurrent payments
     // cannot both read the same spend and jointly breach a cap.
     const run = db.transaction(() => {
-      const row = db
-        .prepare(`SELECT policy_json, status FROM policies WHERE id = ?`)
-        .get(b.policy_id) as PolicyRow | undefined;
-
-      let policy = null;
-      if (row && row.status === "ACTIVE") {
-        const parsed = PolicySchema.safeParse(JSON.parse(row.policy_json));
-        if (parsed.success) policy = parsed.data;
+      if (requestId) {
+        const prior = db
+          .prepare(`SELECT request_hash, response_json FROM idempotency_records WHERE policy_id = ? AND request_id = ?`)
+          .get(b.policy_id, requestId) as { request_hash: string; response_json: string } | undefined;
+        if (prior) {
+          if (prior.request_hash !== hash) {
+            return { status: 409, body: { error: "request_id was already used for a different payment" } };
+          }
+          return { status: 200, body: { ...JSON.parse(prior.response_json), idempotent_replay: true } };
+        }
       }
 
-      const spent = db
-        .prepare(
-          `SELECT COALESCE(SUM(amount_cents), 0) AS total_spent
-           FROM transactions
-           WHERE policy_id = ? AND status = 'APPROVED' AND created_at >= ?`
-        )
-        .get(b.policy_id, windowStart(policy?.period ?? "once")) as { total_spent: number };
-
-      const decision = decide({
-        policy,
-        spentCents: spent.total_spent,
-        amountCents,
-        currency: typeof b.currency === "string" ? b.currency : "AUD",
-        merchant: { name: b.merchant.name, category: b.merchant.category },
-        merchantStatus: lookupMerchant(b.merchant.name, b.merchant.abn),
-        description: typeof b.description === "string" ? b.description : undefined,
-        customerCap: customerCapInput(),
-      });
-
-      const receiptId = recordReceipt({
-        token: b.token,
+      const { decision, receiptId, approvalId } = runDecision({
         policyId: b.policy_id,
+        token: b.token,
         agentId: b.agent_id,
-        merchantName: b.merchant.name,
-        category: b.merchant.category,
+        merchant: { name: b.merchant.name, category: b.merchant.category, abn: b.merchant.abn },
         amountCents,
-        approvedCents: decision.approvedAmountCents ?? 0,
-        outcome: decision.outcome,
-        reason: decision.reason,
-        declinedBy: decision.outcome === "decline" ? "bank" : undefined,
-        rule: decision.rule,
-        limitedBy: decision.limitedBy,
+        currency,
+        description,
       });
+      const body = decisionResponse(decision, receiptId, approvalId);
 
-      // Same table the existing authorize route uses, so the budget is shared.
-      if (policy && decision.approvedAmountCents) {
+      if (requestId) {
         db.prepare(`
-          INSERT INTO transactions
-          (id, policy_id, amount_cents, merchant, category, status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          randomUUID(),
-          b.policy_id,
-          decision.approvedAmountCents,
-          b.merchant.name,
-          b.merchant.category,
-          "APPROVED",
-          new Date().toISOString()
-        );
+          INSERT INTO idempotency_records (policy_id, request_id, request_hash, response_json, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(b.policy_id, requestId, hash, JSON.stringify(body), new Date().toISOString());
       }
-
-      return { decision, receiptId };
+      return { status: 200, body };
     });
 
-    const { decision, receiptId } = run.immediate();
-
-    return Response.json({
-      outcome: decision.outcome,
-      reason: decision.reason,
-      receipt_id: receiptId,
-      approved_amount:
-        decision.approvedAmountCents !== undefined
-          ? decision.approvedAmountCents / 100
-          : undefined,
-      rule: decision.rule,
-      limited_by: decision.limitedBy,
-      remaining_overall:
-        decision.remainingOverallCents !== undefined
-          ? decision.remainingOverallCents / 100
-          : undefined,
-      remaining_budget:
-        decision.remainingBudgetCents !== undefined
-          ? decision.remainingBudgetCents / 100
-          : undefined,
-    });
+    const { status, body } = run.immediate();
+    return Response.json(body, { status });
   } catch (error) {
     console.error("Bank decide error:", error);
     return Response.json({ error: "Bank decision failed" }, { status: 500 });

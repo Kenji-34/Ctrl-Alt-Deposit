@@ -100,4 +100,36 @@ db.exec(`
   )
 `);
 
+ensureColumn("policies", "agent_id", "TEXT");
+
+// Registry of the customer's AI agents. A policy (mandate) belongs to one agent.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    created_at TEXT NOT NULL
+  )
+`);
+
+// "Ask customer" outcomes wait here until the customer approves or rejects.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pending_approvals (
+    id TEXT PRIMARY KEY,
+    policy_id TEXT NOT NULL,
+    token TEXT,
+    agent_id TEXT,
+    merchant_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL,
+    outcome TEXT,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
+  )
+`);
+
 export default db;

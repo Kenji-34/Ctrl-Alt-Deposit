@@ -2,6 +2,8 @@ export type Period = "week" | "month" | "once";
 
 export type Agent = {
   id: string;
+  agentId?: string | null;
+  agentName?: string | null;
   prompt: string;
   status: "ACTIVE" | "REVOKED" | string;
   merchant: string;
@@ -38,4 +40,22 @@ export type Overall = {
   remainingCents: number;
 };
 
-export type Summary = { agents: Agent[]; activity: Activity[]; overall?: Overall };
+export type Pending = {
+  id: string;
+  policyId: string;
+  agentName: string | null;
+  merchant: string;
+  category: string;
+  amountCents: number;
+  createdAt: string;
+};
+
+export type RegistryAgent = { id: string; name: string; status: string; activeMandates: number };
+
+export type Summary = {
+  agents: Agent[];
+  activity: Activity[];
+  overall?: Overall;
+  pending?: Pending[];
+  registry?: RegistryAgent[];
+};
