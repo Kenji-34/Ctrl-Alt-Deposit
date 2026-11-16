@@ -4,6 +4,7 @@ import { PolicySchema } from "@/lib/policy-schema";
 import { decide } from "@/lib/bank-decide";
 import { lookupMerchant } from "@/lib/merchant-lookup";
 import { recordReceipt } from "@/lib/bank-receipts";
+import { windowStart } from "@/lib/budget";
 import { randomUUID } from "node:crypto";
 
 type PolicyRow = { policy_json: string; status: string };
@@ -38,9 +39,10 @@ export async function POST(request: Request) {
       const spent = db
         .prepare(
           `SELECT COALESCE(SUM(amount_cents), 0) AS total_spent
-           FROM transactions WHERE policy_id = ? AND status = 'APPROVED'`
+           FROM transactions
+           WHERE policy_id = ? AND status = 'APPROVED' AND created_at >= ?`
         )
-        .get(b.policy_id) as { total_spent: number };
+        .get(b.policy_id, windowStart(policy?.period ?? "once")) as { total_spent: number };
 
       const decision = decide({
         policy,

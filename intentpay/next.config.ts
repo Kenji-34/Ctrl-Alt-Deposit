@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -7,13 +9,9 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
+  // Pin the project root to this folder (a lockfile in the repo root confuses Next).
   turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
+    root: path.dirname(fileURLToPath(import.meta.url)),
   },
 };
 

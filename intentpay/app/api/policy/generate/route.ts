@@ -37,6 +37,8 @@ export async function POST(request: Request) {
           - Default to AUD.
           - Unspecified merchant = empty string.
           - Unspecified category = "general".
+          - period is "week", "month" or "once".
+            Use "once" when no repeat is stated.
           - Unspecified prohibitedItems = [].
           - If no spending limit is given, use 0
             and set needsClarification to true.
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
             currency: { type: "string" },
             merchant: { type: "string" },
             category: { type: "string" },
+            period: { type: "string", enum: ["week", "month", "once"] },
             prohibitedItems: {
               type: "array",
               items: { type: "string" }
@@ -68,6 +71,7 @@ export async function POST(request: Request) {
             "currency",
             "merchant",
             "category",
+            "period",
             "prohibitedItems",
             "needsClarification",
             "clarificationQuestion"
