@@ -1,0 +1,11 @@
+{
+  "name": "network",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mock card-network token service (stands in for Visa VTS / Mastercard MDES)",
+  "scripts": {
+    "start": "node server.mjs",
+    "mock-bank": "node mock-bank.mjs"
+  }
+}
