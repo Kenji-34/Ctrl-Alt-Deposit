@@ -26,7 +26,16 @@ export type Activity = {
   outcome: "approve" | "approve_narrower" | "ask_customer" | "decline" | string;
   reason: string;
   declinedBy: string | null;
+  rule?: string | null;
+  limitedBy?: "agent" | "overall" | string | null;
   createdAt: string;
 };
 
-export type Summary = { agents: Agent[]; activity: Activity[] };
+export type Overall = {
+  limitCents: number;
+  period: Period;
+  spentCents: number;
+  remainingCents: number;
+};
+
+export type Summary = { agents: Agent[]; activity: Activity[]; overall?: Overall };

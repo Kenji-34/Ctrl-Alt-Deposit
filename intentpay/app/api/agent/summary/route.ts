@@ -4,6 +4,7 @@ import { PolicySchema } from "@/lib/policy-schema";
 import { windowStart } from "@/lib/budget";
 import { getAgentToken } from "@/lib/agent-tokens";
 import { listReceipts } from "@/lib/bank-receipts";
+import { getCustomerLimit, customerSpentCents } from "@/lib/customer-limits";
 
 
 type Row = { id: string; original_prompt: string; policy_json: string; status: string; created_at: string };
@@ -55,11 +56,22 @@ export async function GET() {
         approvedCents: r.approved_cents,
         outcome: r.outcome,
         reason: r.reason,
+        rule: r.rule ?? null,
+        limitedBy: r.limited_by ?? null,
         declinedBy: r.declined_by,
         createdAt: r.created_at,
       }));
 
-    return Response.json({ agents, activity });
+    const lim = getCustomerLimit();
+    const overallSpent = customerSpentCents(lim.period);
+    const overall = {
+      limitCents: lim.limitCents,
+      period: lim.period,
+      spentCents: overallSpent,
+      remainingCents: Math.max(0, lim.limitCents - overallSpent),
+    };
+
+    return Response.json({ agents, activity, overall });
   } catch (error) {
     console.error("Summary error:", error);
     return Response.json({ error: "Failed to load agents" }, { status: 500 });

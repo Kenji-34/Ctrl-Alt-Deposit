@@ -58,7 +58,10 @@ export default function Home() {
             name="AI Agent Service"
             number="123-456 12345678"
             amount={dollars(budgetLeft)}
-            note={`${active.length} active agent ${active.length === 1 ? "card" : "cards"}`}
+            note={
+              `${active.length} active agent ${active.length === 1 ? "card" : "cards"}` +
+              (data?.overall ? ` · ${dollars(data.overall.remainingCents)} left of overall cap` : "")
+            }
           />
         </Link>
       </Card>

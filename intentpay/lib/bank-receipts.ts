@@ -1,5 +1,5 @@
 // Receipts: one row for every decision the bank makes, including declines.
-import db from "@/lib/db";
+import db, { ensureColumn } from "@/lib/db";
 import { randomUUID } from "node:crypto";
 
 db.exec(`
@@ -19,6 +19,9 @@ db.exec(`
   )
 `);
 
+ensureColumn("bank_receipts", "rule", "TEXT");
+ensureColumn("bank_receipts", "limited_by", "TEXT");
+
 export type ReceiptInput = {
   token?: string;
   policyId?: string;
@@ -30,6 +33,8 @@ export type ReceiptInput = {
   outcome: string;
   reason: string;
   declinedBy?: string;
+  rule?: string;
+  limitedBy?: string;
 };
 
 export function recordReceipt(r: ReceiptInput): string {
@@ -37,8 +42,8 @@ export function recordReceipt(r: ReceiptInput): string {
   db.prepare(`
     INSERT INTO bank_receipts
     (id, token, policy_id, agent_id, merchant_name, category,
-     amount_cents, approved_cents, outcome, reason, declined_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     amount_cents, approved_cents, outcome, reason, declined_by, created_at, rule, limited_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     r.token ?? null,
@@ -51,7 +56,9 @@ export function recordReceipt(r: ReceiptInput): string {
     r.outcome,
     r.reason,
     r.declinedBy ?? null,
-    new Date().toISOString()
+    new Date().toISOString(),
+    r.rule ?? null,
+    r.limitedBy ?? null
   );
   return id;
 }

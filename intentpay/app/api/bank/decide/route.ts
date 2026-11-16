@@ -5,6 +5,7 @@ import { decide } from "@/lib/bank-decide";
 import { lookupMerchant } from "@/lib/merchant-lookup";
 import { recordReceipt } from "@/lib/bank-receipts";
 import { windowStart } from "@/lib/budget";
+import { customerCapInput } from "@/lib/customer-limits";
 import { randomUUID } from "node:crypto";
 
 type PolicyRow = { policy_json: string; status: string };
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Invalid transaction details" }, { status: 400 });
     }
 
+    // IMMEDIATE takes the write lock up front, so two concurrent payments
+    // cannot both read the same spend and jointly breach a cap.
     const run = db.transaction(() => {
       const row = db
         .prepare(`SELECT policy_json, status FROM policies WHERE id = ?`)
@@ -52,6 +55,7 @@ export async function POST(request: Request) {
         merchant: { name: b.merchant.name, category: b.merchant.category },
         merchantStatus: lookupMerchant(b.merchant.name, b.merchant.abn),
         description: typeof b.description === "string" ? b.description : undefined,
+        customerCap: customerCapInput(),
       });
 
       const receiptId = recordReceipt({
@@ -65,6 +69,8 @@ export async function POST(request: Request) {
         outcome: decision.outcome,
         reason: decision.reason,
         declinedBy: decision.outcome === "decline" ? "bank" : undefined,
+        rule: decision.rule,
+        limitedBy: decision.limitedBy,
       });
 
       // Same table the existing authorize route uses, so the budget is shared.
@@ -87,7 +93,7 @@ export async function POST(request: Request) {
       return { decision, receiptId };
     });
 
-    const { decision, receiptId } = run();
+    const { decision, receiptId } = run.immediate();
 
     return Response.json({
       outcome: decision.outcome,
@@ -96,6 +102,12 @@ export async function POST(request: Request) {
       approved_amount:
         decision.approvedAmountCents !== undefined
           ? decision.approvedAmountCents / 100
+          : undefined,
+      rule: decision.rule,
+      limited_by: decision.limitedBy,
+      remaining_overall:
+        decision.remainingOverallCents !== undefined
+          ? decision.remainingOverallCents / 100
           : undefined,
       remaining_budget:
         decision.remainingBudgetCents !== undefined

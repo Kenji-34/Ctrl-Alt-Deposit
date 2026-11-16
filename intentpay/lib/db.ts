@@ -82,4 +82,22 @@ db.exec(`
 `);
 
 
+// Additive migrations: safe to run on an existing data/intentpay.db.
+export function ensureColumn(table: string, column: string, ddl: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
+}
+
+// One row per customer: the cap across ALL of that customer's agents.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS customer_limits (
+    customer_id TEXT PRIMARY KEY,
+    limit_cents INTEGER NOT NULL,
+    period TEXT NOT NULL DEFAULT 'week',
+    updated_at TEXT NOT NULL
+  )
+`);
+
 export default db;

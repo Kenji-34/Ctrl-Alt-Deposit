@@ -44,6 +44,11 @@ export function ActivityList({ items }: { items: Activity[] }) {
                   </div>
                   <Badge color={l.color}>{l.text}</Badge>
                   <p className="text-sm text-gray-700">{a.reason}</p>
+                  {a.limitedBy && (a.outcome === "decline" || a.outcome === "approve_narrower") && (
+                    <p className="text-xs font-medium text-gray-500">
+                      Limit applied: {a.limitedBy === "overall" ? "Overall cap (all agents)" : "This agent's budget"}
+                    </p>
+                  )}
                 </li>
               );
             })}
