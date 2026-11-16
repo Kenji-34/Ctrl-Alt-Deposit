@@ -47,17 +47,26 @@ const db = {
       all: (...args: any[]) => stmt.all(...args),
     };
   },
-  // same behaviour as better-sqlite3's db.transaction(fn): returns a function to call
-  transaction: <T,>(fn: () => T) => () => {
-    raw.exec("BEGIN");
-    try {
-      const result = fn();
-      raw.exec("COMMIT");
-      return result;
-    } catch (error) {
-      raw.exec("ROLLBACK");
-      throw error;
-    }
+  // Same behaviour as better-sqlite3's db.transaction(fn): returns a function to call.
+  // Like better-sqlite3 it also offers .immediate() / .deferred() / .exclusive(),
+  // which take the database lock up front (the authorise route relies on .immediate()).
+  transaction: <T,>(fn: () => T) => {
+    const make = (mode: string) => (): T => {
+      raw.exec(`BEGIN ${mode}`.trim());
+      try {
+        const result = fn();
+        raw.exec("COMMIT");
+        return result;
+      } catch (error) {
+        raw.exec("ROLLBACK");
+        throw error;
+      }
+    };
+    return Object.assign(make(""), {
+      immediate: make("IMMEDIATE"),
+      deferred: make("DEFERRED"),
+      exclusive: make("EXCLUSIVE"),
+    });
   },
 };
 
