@@ -5,7 +5,7 @@ import type { PolicySchema } from "@/lib/policy-schema";
 
 type Policy = z.infer<typeof PolicySchema>;
 
-const MERCHANTS = ["Woolworths", "Coles", "Aldi", "IGA", "Qantas", "Jetstar", "Netflix", "Spotify"];
+const MERCHANTS = ["Woolworths", "Coles", "Aldi", "IGA", "Qantas", "Jetstar", "Netflix", "Spotify", "Officeworks"];
 
 export function parsePolicyFallback(prompt: string): Policy {
   const text = prompt.toLowerCase();
@@ -14,7 +14,11 @@ export function parsePolicyFallback(prompt: string): Policy {
 
   const period = /(week|weekly)/.test(text) ? "week" : /(month|monthly)/.test(text) ? "month" : "once";
   const merchant = MERCHANTS.find((x) => text.includes(x.toLowerCase())) ?? "";
-  const category = /(grocer|food|supermarket)/.test(text)
+  const category = /(supplier|invoice)/.test(text)
+    ? "supplier invoices"
+    : /(office|stationery)/.test(text)
+      ? "office supplies"
+      : /(grocer|food|supermarket)/.test(text)
     ? "groceries"
     : /(netflix|spotify|subscription|streaming)/.test(text)
       ? "subscriptions"
@@ -28,7 +32,7 @@ export function parsePolicyFallback(prompt: string): Policy {
     merchant,
     category,
     period,
-    amountType: category === "subscriptions" || category === "travel" ? "fixed" : "flexible",
+    amountType: category === "subscriptions" || category === "supplier invoices" || category === "travel" ? "fixed" : "flexible",
     prohibitedItems: [],
     needsClarification: cents === 0,
     clarificationQuestion: cents === 0 ? "How much can the agent spend?" : "",

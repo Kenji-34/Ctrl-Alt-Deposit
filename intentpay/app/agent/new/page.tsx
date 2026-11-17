@@ -10,12 +10,12 @@ import type { Period } from "@/app/components/types";
 
 const GOALS = [
   { title: "Weekly groceries", text: "Buy groceries at Woolworths, up to $50 a week" },
-  { title: "Monthly subscriptions", text: "Pay my subscriptions like Netflix, up to $30 a month" },
+  { title: "Supplier invoices", text: "Pay supplier invoices for the business, up to $80 a month" },
   { title: "One-off purchase", text: "Make one purchase of up to $100" },
   { title: "Something else", text: "" },
 ];
 
-const CATEGORIES = ["groceries", "subscriptions", "travel", "dining", "transport", "general"];
+const CATEGORIES = ["groceries", "office supplies", "supplier invoices", "subscriptions", "travel", "dining", "transport", "general"];
 const DEFAULT_PROHIBITED = "gift card, alcohol";
 const TOKEN_DAYS = 30;
 
@@ -66,8 +66,8 @@ export default function NewAgentCard() {
   function set<K extends keyof Draft>(k: K, v: Draft[K]) {
     setDraft((d) => {
       const next = { ...d, [k]: v };
-      // Subscriptions and flights have a set price, so they default to fixed.
-      if (k === "category") next.amountType = v === "subscriptions" || v === "travel" ? "fixed" : "flexible";
+      // Subscriptions, supplier invoices and flights have a set price, so they default to fixed.
+      if (k === "category") next.amountType = v === "subscriptions" || v === "supplier invoices" || v === "travel" ? "fixed" : "flexible";
       return next;
     });
   }
