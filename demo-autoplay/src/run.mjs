@@ -166,10 +166,27 @@ async function waitForRow(merchant, outcome) {
 }
 
 // ---------- segments ----------
+async function home() {
+  await step("home: open the Home screen", async () => {
+    await go("/");
+    await D("home-agent-row").waitFor({ timeout: cfg.waitMs });
+    await page.waitForFunction(() => {
+      const r = document.querySelector('[data-demo="home-agent-row"]');
+      return !!r && /\$\d/.test(r.innerText) && /agents? ·/.test(r.innerText);
+    }, null, { timeout: cfg.waitMs, polling: 250 });
+    await caption(captions.home); await pause(hold.medium);
+  });
+  await step("home: tap the Agent Payment Control row", async () => {
+    await click(D("home-agent-row"));
+    await D("overall-cap").waitFor({ timeout: cfg.waitMs });
+  });
+}
+
 async function intro() {
   const c = captions.intro;
   await step("intro: open Cards screen", async () => {
-    await go("/agent");
+    if (!new URL(page.url()).pathname.startsWith("/agent")) await go("/agent");
+    else await overlayReady();
     await D("overall-cap").waitFor({ timeout: cfg.waitMs });
     for (const n of ["ChatGPT", "Gemini", "Perplexity"]) await D(`agent-${n}`).waitFor({ timeout: cfg.waitMs });
     await caption(c[0]); await pause(hold.long);
@@ -358,7 +375,7 @@ async function main() {
   if (ONLY_SCENE) {
     const id = ONLY_SCENE.length === 1 ? ONLY_SCENE.toUpperCase() : ONLY_SCENE.toLowerCase();
     const found = story.find((s) => s.id === id) ?? (SCENES[id] ? { id } : null);
-    if (!found) throw new Error(`Unknown scene "${ONLY_SCENE}". Use A-F, intro, claude or outro.`);
+    if (!found) throw new Error(`Unknown scene "${ONLY_SCENE}". Use A-F, home, intro, claude or outro.`);
     plan = [found];
   }
 
@@ -379,7 +396,8 @@ async function main() {
   try {
     let first = true;
     for (const seg of plan) {
-      if (seg.id === "intro") await intro();
+      if (seg.id === "home") await home();
+      else if (seg.id === "intro") await intro();
       else if (seg.id === "claude") await claude();
       else if (seg.id === "outro") await outro();
       else {

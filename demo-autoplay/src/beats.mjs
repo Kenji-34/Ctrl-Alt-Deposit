@@ -26,6 +26,7 @@ export const hold = { beat: 900, short: 1600, medium: 2600, long: 4200 };
 // (definitions are read from intentpay/app/demo/page.tsx so they cannot drift).
 // "only" picks which of that scene's steps to play (0-based). Omit it to play all of them.
 export const story = [
+  { id: "home" },
   { id: "intro" },
   { id: "claude" },
   { id: "A", only: [0, 2] },
@@ -38,6 +39,7 @@ export const story = [
 ];
 
 export const captions = {
+  home: "This is the customer's bank. One row shows how much AI agents can still spend this week.",
   intro: [
     "AI agents are about to spend your money. Card networks check each token, but only your bank sees all of them.",
     "One overall cap protects you across every agent.",

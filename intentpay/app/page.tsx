@@ -6,7 +6,7 @@ import { Button, Card } from "@/app/components/ui";
 import { useSummary } from "@/app/components/useSummary";
 import { dollars } from "@/lib/format";
 
-function Account({ name, number, amount, note }: { name: string; number: string; amount: string; note?: string }) {
+function Account({ name, number, amount, note, amountLabel }: { name: string; number?: string; amount: string; note?: string; amountLabel?: string }) {
   return (
     <div className="rounded-md border border-gray-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
@@ -14,8 +14,8 @@ function Account({ name, number, amount, note }: { name: string; number: string;
         <span className="text-base font-bold text-gray-900">{amount}</span>
       </div>
       <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>{number}</span>
-        {note && <span>{note}</span>}
+        <span>{number ?? note}</span>
+        {number ? note && <span>{note}</span> : amountLabel && <span>{amountLabel}</span>}
       </div>
     </div>
   );
@@ -25,6 +25,9 @@ export default function Home() {
   const { data } = useSummary(5000);
   const active = data?.agents.filter((a) => a.status === "ACTIVE") ?? [];
   const budgetLeft = active.reduce((sum, a) => sum + a.remainingCents, 0);
+  // Headroom: the smaller of the overall cap left and the sum of agent budgets left.
+  const headroom = data?.overall ? Math.min(data.overall.remainingCents, budgetLeft) : budgetLeft;
+  const agentCount = data?.registry?.filter((r) => r.status === "ACTIVE").length ?? 0;
 
   return (
     <HomeShell>
@@ -53,15 +56,12 @@ export default function Home() {
           </div>
         </div>
 
-        <Link href="/agent" className="block">
+        <Link href="/agent" className="block" data-demo="home-agent-row">
           <Account
             name="Agent Payment Control"
-            number="123-456 12345678"
-            amount={dollars(budgetLeft)}
-            note={
-              `${data?.registry?.filter((r) => r.status === "ACTIVE").length ?? 0} agents · ${active.length} ${active.length === 1 ? "mandate" : "mandates"}` +
-              (data?.overall ? ` · ${dollars(data.overall.remainingCents)} left of overall cap` : "")
-            }
+            amount={data ? dollars(headroom) : "…"}
+            amountLabel="left this week"
+            note={`${agentCount} ${agentCount === 1 ? "agent" : "agents"} · ${active.length} ${active.length === 1 ? "mandate" : "mandates"}`}
           />
         </Link>
       </Card>
