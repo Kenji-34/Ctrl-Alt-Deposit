@@ -1,6 +1,6 @@
 # demo-autoplay
 
-Drives the **real** intentpay UI with Playwright (nothing is mocked or faked) and can record the run as a video.
+Drives the **real** Agent Payment Control UI with Playwright (nothing is mocked or faked) and can record the run as a video.
 Agent purchases, which don't exist in the bank UI, are triggered by calling the same endpoints the `/demo` page calls, and the scene definitions are read straight from `intentpay/app/demo/page.tsx`, so they can't drift. Results are then shown in the real Cards screen and receipt page.
 
 The app is unchanged apart from `data-demo="..."` attributes (and `Card` in `ui.tsx` passing one through).

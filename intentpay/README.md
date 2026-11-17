@@ -1,9 +1,9 @@
-# intentpay: a bank-side control layer for AI-agent payments
+# Agent Payment Control: a bank-side control layer for AI-agent payments
 
 A mock Westpac app (this folder, Next.js, port 3000) plus a mock card network (`../network`, port 4000).
 
 **Idea:** card networks can check coarse token claims. The bank is the party that knows who the customer is, what they
-authorised, and what they have already spent across *all* their agents. intentpay adds that bank-side layer.
+authorised, and what they have already spent across *all* their agents. Agent Payment Control adds that bank-side layer.
 It is complementary to the networks' agent-payment work, not a replacement for it.
 
 **Principle:** AI proposes, deterministic rules decide, and AI may only tighten. Every payment decision is made by

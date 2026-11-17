@@ -1,8 +1,8 @@
-# intentpay: a bank-side control layer for AI-agent payments
+# Agent Payment Control: a bank-side control layer for AI-agent payments
 
 Westpac Innovation and Coding Competition entry (Ctrl-Alt-Deposit).
 
-AI agents (ChatGPT, Gemini, Perplexity, ...) are about to spend customers' money. Card networks can check each agent's token, but **only the bank sees every agent at once**. intentpay is the bank-side layer that does that: one customer, many agents, each with its own mandates, all under one overall spending cap.
+AI agents (ChatGPT, Gemini, Perplexity, ...) are about to spend customers' money. Card networks can check each agent's token, but **only the bank sees every agent at once**. Agent Payment Control is the bank-side layer that does that: one customer, many agents, each with its own mandates, all under one overall spending cap.
 
 > **Everything involving a card network is simulated.** `network/` is a stand-in service, not Visa or Mastercard. No real money, cards or schemes are involved. It is modelled loosely on public descriptions of Visa Intelligent Commerce and Mastercard Agent Pay.
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Westpac AI Agent Service",
+  title: "Agent Payment Control",
   description: "Control what your AI agent can spend",
 };
 

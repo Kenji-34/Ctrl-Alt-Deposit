@@ -1,6 +1,6 @@
 # network: mock card-network token service
 
-Stands in for Visa VTS / Mastercard MDES. The bank (intentpay) is a separate service.
+Stands in for Visa VTS / Mastercard MDES. The bank (Agent Payment Control) is a separate service.
 Zero dependencies, Node 18+.
 
 ```
@@ -16,7 +16,7 @@ Open http://localhost:4000 for a live view of the vault and activity.
 - `POST /tokens/:id/revoke` -> token with status `revoked`
 - `GET /tokens`, `GET /tokens/:id`, `GET /log`
 
-## Bank endpoints the network calls (intentpay must implement)
+## Bank endpoints the network calls (the bank must implement)
 - `POST /api/bank/approve-provisioning` `{ card_ref, agent_id, scope, expiry, policy_id }` -> `{ approved: bool, reason }`
 - `POST /api/bank/decide` `{ token, card_ref, agent_id, policy_id, merchant, amount, currency, description }` -> `{ outcome, reason, receipt_id, approved_amount? }`
 - `POST /api/bank/decline-notice` `{ token, card_ref, agent_id, policy_id, merchant, amount, reason, declined_by }` -> `{ receipt_id }` (network-side declines, so the bank logs every attempt)

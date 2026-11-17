@@ -23,7 +23,7 @@ export default function AgentPage() {
       <Card data-demo="service-card">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-900">AI Agent Service</p>
+            <p className="text-sm font-medium text-gray-900">Agent Payment Control</p>
             <p className="text-xs text-gray-500">Budget left</p>
           </div>
           <span className="text-lg font-bold text-gray-900">{dollars(budgetLeft)}</span>

@@ -55,7 +55,7 @@ export default function Home() {
 
         <Link href="/agent" className="block">
           <Account
-            name="AI Agent Service"
+            name="Agent Payment Control"
             number="123-456 12345678"
             amount={dollars(budgetLeft)}
             note={
