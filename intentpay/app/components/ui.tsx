@@ -151,8 +151,8 @@ export function Icon({ name, size = 24, className }: { name: string; size?: numb
 }
 
 /** White rounded card with a soft border, used for every grouped block of content. */
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx("rounded-lg border border-gray-200 bg-white p-4 shadow-sm", className)}>{children}</section>;
+export function Card({ children, className, "data-demo": dataDemo }: { children: ReactNode; className?: string; "data-demo"?: string }) {
+  return <section data-demo={dataDemo} className={cx("rounded-lg border border-gray-200 bg-white p-4 shadow-sm", className)}>{children}</section>;
 }
 
 /** Section heading, optionally with a small action link on the right. */

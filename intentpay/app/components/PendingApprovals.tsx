@@ -31,7 +31,7 @@ export function PendingApprovals({ items, onChanged }: { items: Pending[]; onCha
   return (
     <div className="space-y-2">
       {items.map((p) => (
-        <Card key={p.id} className="space-y-2 border-amber-300">
+        <Card key={p.id} data-demo="pending-approval" className="space-y-2 border-amber-300">
           <p className="text-sm font-semibold text-gray-900">Your agent wants to pay a new merchant</p>
           <p className="text-sm text-gray-700">
             {p.agentName ?? "An agent"} wants to pay <strong>{p.merchant}</strong> {dollars(p.amountCents)} ({p.category}).
@@ -40,7 +40,7 @@ export function PendingApprovals({ items, onChanged }: { items: Pending[]; onCha
           {p.aiNote && <p className="text-xs text-gray-600"><span className="font-semibold">AI check:</span> {p.aiNote}</p>}
           <div className="flex justify-end gap-2">
             <Button look="faint" size="small" disabled={busy === p.id} onClick={() => answer(p.id, "reject")}>Reject</Button>
-            <Button look="primary" size="small" disabled={busy === p.id} onClick={() => answer(p.id, "approve")}>Approve</Button>
+            <Button look="primary" size="small" disabled={busy === p.id} onClick={() => answer(p.id, "approve")} data-demo="pending-approve">Approve</Button>
           </div>
         </Card>
       ))}

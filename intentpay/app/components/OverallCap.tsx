@@ -38,7 +38,7 @@ export function OverallCap({ overall, onChanged }: { overall: Overall; onChanged
   }
 
   return (
-    <Card className="space-y-3">
+    <Card data-demo="overall-cap" className="space-y-3">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-900">Overall cap, all agents</p>

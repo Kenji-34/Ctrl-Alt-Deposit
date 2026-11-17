@@ -20,7 +20,7 @@ export default function AgentPage() {
     <Shell back="/" tab="Cards">
       {error && <Alert look="danger">Could not load your agent cards.</Alert>}
 
-      <Card>
+      <Card data-demo="service-card">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-medium text-gray-900">AI Agent Service</p>
@@ -30,7 +30,7 @@ export default function AgentPage() {
         </div>
         <div className="mt-3 flex justify-end">
           <Link href="/agent/new">
-            <Button look="primary" size="small">Add mandate</Button>
+            <Button look="primary" size="small" data-demo="add-mandate">Add mandate</Button>
           </Link>
         </div>
       </Card>

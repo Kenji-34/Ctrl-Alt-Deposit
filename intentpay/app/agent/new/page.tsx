@@ -160,7 +160,7 @@ export default function NewAgentCard() {
         <>
           <h2 className="text-base font-semibold text-gray-900">Which AI agent is this for?</h2>
           {agents.length > 0 ? (
-            <Select value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="AI agent">
+            <Select value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="AI agent" data-demo="new-agent-select">
               {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </Select>
           ) : (
@@ -171,6 +171,7 @@ export default function NewAgentCard() {
             {GOALS.map((g) => (
               <button
                 key={g.title}
+                data-demo={`goal-${g.title}`}
                 onClick={() => pickGoal(g.text)}
                 className="rounded-lg border border-gray-200 bg-white p-4 text-left text-sm font-medium text-gray-900 hover:border-border-primary"
               >
@@ -189,12 +190,13 @@ export default function NewAgentCard() {
             </label>
             <Textarea
               id="prompt"
+              data-demo="prompt"
               rows={3}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g. Groceries at Woolworths, max $50 a week"
             />
-            <Button look="faint" size="large" block onClick={readRules} disabled={busy || !prompt.trim()}>
+            <Button look="faint" size="large" block onClick={readRules} disabled={busy || !prompt.trim()} data-demo="fill-rules">
               {busy ? "Reading…" : "Fill in the rules for me"}
             </Button>
           </div>
@@ -205,7 +207,7 @@ export default function NewAgentCard() {
           <h2 className="pt-2 text-base font-semibold text-gray-900">Check the rules</h2>
           <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
             <Row label="Who it can pay (optional)">
-              <Input value={draft.merchant} onChange={(e) => set("merchant", e.target.value)} placeholder="e.g. Woolworths" />
+              <Input data-demo="rule-merchant" value={draft.merchant} onChange={(e) => set("merchant", e.target.value)} placeholder="e.g. Woolworths" />
             </Row>
             <Row label="Price type">
               <Select value={draft.amountType} onChange={(e) => set("amountType", e.target.value as "flexible" | "fixed")}>
@@ -221,6 +223,7 @@ export default function NewAgentCard() {
             <Row label="Limit (AUD)">
               <Input
                 inputMode="decimal"
+                data-demo="rule-limit"
                 value={draft.limit}
                 invalid={!limitOk && draft.limit !== ""}
                 onChange={(e) => set("limit", e.target.value.replace(/[^0-9.]/g, ""))}
@@ -247,7 +250,7 @@ export default function NewAgentCard() {
             </Alert>
           )}
 
-          <Button look="primary" size="large" block disabled={!limitOk} onClick={() => setStep(3)}>
+          <Button look="primary" size="large" block disabled={!limitOk} onClick={() => setStep(3)} data-demo="review">
             Review
           </Button>
           <Button look="faint" size="large" block onClick={() => setStep(1)}>Back</Button>
@@ -257,7 +260,7 @@ export default function NewAgentCard() {
       {step === 3 && (
         <>
           <h2 className="text-base font-semibold text-gray-900">Confirm your rules</h2>
-          <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-800">
+          <div data-demo="confirm-summary" className="space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-800">
             <p>
               Your agent can spend up to <strong>{dollars(limitNum * 100)} {periodLabel(draft.period)}</strong> at{" "}
               <strong>{who}</strong> until <strong>{expiryText}</strong>.
@@ -268,7 +271,7 @@ export default function NewAgentCard() {
 
           {error && <Alert look="danger" mode="box">{error}</Alert>}
 
-          <Button look="primary" size="large" block disabled={busy} onClick={confirm}>
+          <Button look="primary" size="large" block disabled={busy} onClick={confirm} data-demo="confirm">
             {busy ? "Setting up…" : "Confirm and create card"}
           </Button>
           <Button look="faint" size="large" block disabled={busy} onClick={() => setStep(2)}>Edit</Button>
@@ -281,7 +284,7 @@ export default function NewAgentCard() {
             Your agent can now spend within these rules. You can revoke the card at any time.
           </Alert>
           <Link href="/agent" className="block">
-            <Button look="primary" size="large" block>View my agent cards</Button>
+            <Button look="primary" size="large" block data-demo="view-cards">View my agent cards</Button>
           </Link>
         </>
       )}

@@ -41,17 +41,17 @@ export function AgentRegistry({ onChanged }: { onChanged: () => void }) {
   }
 
   return (
-    <Card className="space-y-2">
+    <Card data-demo="agent-registry" className="space-y-2">
       <p className="text-sm font-medium text-gray-900">Register an AI agent</p>
       <p className="text-xs text-gray-500">
         Pick from the card network&apos;s agent registry (simulated). The network verifies who an agent is; the bank relies on that.
       </p>
       {options.length > 0 ? (
         <div className="flex gap-2">
-          <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Agent from the network registry">
+          <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Agent from the network registry" data-demo="registry-select">
             {options.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </Select>
-          <Button look="faint" size="small" onClick={add} disabled={!pick}>Register</Button>
+          <Button look="faint" size="small" onClick={add} disabled={!pick} data-demo="registry-register">Register</Button>
         </div>
       ) : (
         !error && <p className="text-sm text-gray-600">Every agent in the network registry is already registered.</p>

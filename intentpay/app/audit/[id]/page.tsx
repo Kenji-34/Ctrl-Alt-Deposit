@@ -62,7 +62,7 @@ export default function AuditDetail({ params }: { params: Promise<{ id: string }
       )}
 
       <SectionTitle>Timeline</SectionTitle>
-      <ol className="space-y-3 border-l-2 border-gray-200 pl-4">
+      <ol data-demo="timeline" className="space-y-3 border-l-2 border-gray-200 pl-4">
         {data.timeline.map((e, i) => (
           <li key={i} className="space-y-0.5">
             <p className="text-xs text-gray-500">{new Date(e.at).toLocaleString("en-AU")}</p>

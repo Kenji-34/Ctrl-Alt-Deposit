@@ -1,0 +1,14 @@
+{
+  "name": "intentpay-demo-autoplay",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Drives the real intentpay UI with Playwright and records the hackathon demo video.",
+  "type": "module",
+  "scripts": {
+    "demo:play": "node src/run.mjs",
+    "demo:record": "node src/run.mjs --record"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

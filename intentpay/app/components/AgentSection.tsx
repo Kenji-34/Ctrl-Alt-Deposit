@@ -25,14 +25,14 @@ export function AgentSection({
   }
 
   return (
-    <Card className="space-y-3">
+    <Card data-demo={`agent-${agent.name}`} className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-base font-semibold text-gray-900">{agent.name}</p>
           <p className="text-xs text-gray-500">{agent.type ?? "AI assistant"}</p>
           {agent.verified && (
             <p className="mt-1 text-xs font-medium text-gray-700">
-              <Badge color="info">Verified by network</Badge>{" "}
+              <span data-demo="verified-badge"><Badge color="info">Verified by network</Badge></span>{" "}
               <span className="font-normal text-gray-500">simulated</span>
             </p>
           )}

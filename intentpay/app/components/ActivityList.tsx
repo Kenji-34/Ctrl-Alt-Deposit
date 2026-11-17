@@ -38,7 +38,7 @@ export function ActivityList({ items }: { items: Activity[] }) {
               const shown =
                 a.outcome === "decline" || a.outcome === "ask_customer" ? a.amountCents : a.approvedCents || a.amountCents;
               return (
-                <li key={a.id} className="space-y-1 py-3">
+                <li key={a.id} data-demo="activity-row" data-outcome={a.outcome} data-merchant={a.merchant ?? ""} className="space-y-1 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-gray-900">{a.merchant ?? "Unknown merchant"}</span>
                     <span className="text-sm font-semibold text-gray-900">{dollars(shown)}</span>
@@ -48,7 +48,7 @@ export function ActivityList({ items }: { items: Activity[] }) {
                   {a.declinedBy === "network" && (
                     <p className="text-xs text-gray-500">Declined by the card network (simulated), before reaching the bank&apos;s rules</p>
                   )}
-                  <Link href={`/audit/${a.id}`} className="text-xs font-medium text-text-primary underline">View receipt</Link>
+                  <Link href={`/audit/${a.id}`} className="text-xs font-medium text-text-primary underline" data-demo="view-receipt">View receipt</Link>
                   {a.ai && (
                     <p className="text-xs text-gray-600">
                       <span className="font-semibold">AI check:</span> {a.ai.reason}
