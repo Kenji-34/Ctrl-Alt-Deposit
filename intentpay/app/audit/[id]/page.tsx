@@ -1,5 +1,6 @@
 "use client";
 
+import { sideOf } from "@/lib/sides";
 import { use, useEffect, useState } from "react";
 import { Shell } from "@/app/components/Shell";
 import { Alert, Badge, Card, SectionTitle } from "@/app/components/ui";
@@ -44,7 +45,7 @@ export default function AuditDetail({ params }: { params: Promise<{ id: string }
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 pt-1 text-xs text-gray-600">
           <dt>Receipt</dt><dd className="font-mono">{r.id}</dd>
           <dt>Delegated by</dt><dd>{data.delegatedBy}</dd>
-          {data.agentName && (<><dt>Agent</dt><dd>{data.agentName}</dd></>)}
+          {data.agentName && (<><dt>Agent</dt><dd>{data.agentName}{sideOf(data.agentName) && <span className="ml-2"><Badge color={sideOf(data.agentName) === "Business" ? "muted" : "info"}>{sideOf(data.agentName)}</Badge></span>}</dd></>)}
           {r.token && (<><dt>Token</dt><dd className="font-mono">{r.token}</dd></>)}
           {r.rule && (<><dt>Rule fired</dt><dd className="font-mono">{r.rule}</dd></>)}
         </dl>

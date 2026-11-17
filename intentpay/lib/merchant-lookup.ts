@@ -8,6 +8,8 @@ import type { MerchantStatus } from "./bank-decide";
 const KNOWN = [
   "coles", "woolworths", "aldi", "iga",
   "qantas", "jetstar", "virgin australia", "netflix", "spotify",
+  "officeworks", // business office supplies
+  "cloud hosting invoice", "domain renewal", // business supplier invoices
 ];
 
 function distance(a: string, b: string): number {

@@ -20,22 +20,22 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
     id: "A",
     title: "Scene A: the overall cap wins",
     blurb:
-      "This week ChatGPT has spent $140 and Gemini $100, so $60 is left under the $300 cap. Gemini's own groceries mandate still has $80, but the overall cap is tighter. The bank sees every agent; no single card token can.",
+      "This week ChatGPT (personal) has spent $140 and Gemini (business) $100, so $60 is left under the single $300 cap that covers both sides. Gemini's own office supplies mandate still has $80, but the overall cap is tighter. No single agent token knows about the others; the bank also sees the customer's whole account.",
     steps: [
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 75, note: "Groceries, within Gemini's own budget" },
-      { agent: "Gemini", merchant: "Coles", category: "groceries", amount: 10, note: "More groceries" },
-      { agent: "ChatGPT", merchant: "Qantas", category: "travel", amount: 100, fixedAmount: true, note: "A different agent, same cap" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 75, note: "Office supplies, within Gemini's own budget" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 10, note: "More office supplies" },
+      { agent: "ChatGPT", merchant: "Qantas", category: "travel", amount: 100, fixedAmount: true, note: "A different agent on the personal side, same cap" },
     ],
   },
   {
     id: "B",
     title: "Scene B: new merchants and lookalikes",
     blurb:
-      "Reset first. A merchant the bank has never seen is sent to you to confirm. A lookalike of a known merchant and a prohibited item are declined outright.",
+      "Reset first. A supplier the bank has never seen is sent to you to confirm. A lookalike of a known supplier and a prohibited item are declined outright.",
     steps: [
-      { agent: "Gemini", merchant: "Fresh Harvest Market", category: "groceries", amount: 30, note: "New merchant" },
-      { agent: "Gemini", merchant: "Cooles", category: "groceries", amount: 20, note: "Lookalike of Coles" },
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 25, description: "Gift card bundle", note: "Prohibited item" },
+      { agent: "Gemini", merchant: "Paper & Co", category: "office supplies", amount: 30, note: "New supplier" },
+      { agent: "Gemini", merchant: "Offlceworks", category: "office supplies", amount: 20, note: "Lookalike of Officeworks" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 25, description: "Gift card bundle", note: "Prohibited item" },
     ],
   },
   {
@@ -44,11 +44,11 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
     blurb:
       "Cancelling at the network only stops future credentials, so a card that was already issued keeps working. A bank-side revoke blocks the very next payment. Reset first.",
     steps: [
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 20, note: "Normal purchase" },
-      { kind: "netcancel", agent: "Gemini", category: "groceries", merchant: "Network", amount: 0, note: "Cancel the instruction at the network only" },
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 20, note: "Already-issued card still works" },
-      { kind: "bankrevoke", agent: "Gemini", category: "groceries", merchant: "Bank", amount: 0, note: "Revoke at the bank" },
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 20, note: "Blocked immediately" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 20, note: "Normal purchase" },
+      { kind: "netcancel", agent: "Gemini", category: "office supplies", merchant: "Network", amount: 0, note: "Cancel the instruction at the network only" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 20, note: "Already-issued card still works" },
+      { kind: "bankrevoke", agent: "Gemini", category: "office supplies", merchant: "Bank", amount: 0, note: "Revoke at the bank" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 20, note: "Blocked immediately" },
     ],
   },
   {
@@ -57,21 +57,21 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
     blurb:
       "The rules decide first. The AI check only runs on payments the rules did not decline, and it can only make the outcome stricter. Reset first. Without a Gemini key a clearly labelled demo fixture stands in.",
     steps: [
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 12, lineItems: ["milk", "bread", "eggs"], note: "Plain groceries: passes" },
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 18, lineItems: ["milk", "a blender"], note: "Mixed basket: asks you" },
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 25, lineItems: ["55-inch TV"], note: "Right merchant, wrong basket: blocked" },
-      { agent: "Gemini", merchant: "WOOLIES*SYD", category: "groceries", amount: 9, lineItems: ["bread", "chicken"], note: "Messy descriptor: asks you, with an AI hint" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 12, lineItems: ["printer paper", "pens", "staples"], note: "Plain office supplies: passes" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 18, lineItems: ["printer paper", "a blender"], note: "Mixed basket: asks you" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 25, lineItems: ["55-inch TV"], note: "Right merchant, wrong basket: blocked" },
+      { agent: "Gemini", merchant: "OFFICEWORKS*SYD", category: "office supplies", amount: 9, lineItems: ["printer paper", "pens"], note: "Messy descriptor: asks you, with an AI hint" },
     ],
   },
   {
     id: "E",
     title: "Scene E: fixed price vs flexible",
     blurb:
-      "Groceries are flexible, so a bank can approve less. A subscription has one price, so a part-payment makes no sense: it is approved in full or declined. Reset first.",
+      "Office supplies are flexible, so a bank can approve less. A supplier invoice has one price, so a part-payment makes no sense: it is approved in full or declined. Reset first.",
     steps: [
-      { agent: "Gemini", merchant: "Netflix", category: "subscriptions", amount: 55, note: "Fixed price, more than the $50 left: declined" },
-      { agent: "Gemini", merchant: "Spotify", category: "subscriptions", amount: 12, note: "Fixed price that fits: approved" },
-      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 90, note: "Flexible: reduced instead of declined" },
+      { agent: "Gemini", merchant: "Cloud hosting invoice", category: "supplier invoices", amount: 55, note: "Fixed price, more than the $50 left: declined" },
+      { agent: "Gemini", merchant: "Domain renewal", category: "supplier invoices", amount: 12, note: "Fixed price that fits: approved" },
+      { agent: "Gemini", merchant: "Officeworks", category: "office supplies", amount: 90, note: "Flexible: reduced instead of declined" },
     ],
   },
   {
@@ -114,7 +114,7 @@ export default function DemoPage() {
   const [next, setNext] = useState<Record<string, number>>({ A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 });
 
   async function runStep(sceneId: string, step: Step) {
-    const policy = data?.agents.find((a) => a.agentName === step.agent && (a.status === "ACTIVE" || step.kind === undefined) );
+    const policy = data?.agents.find((a) => a.agentName === step.agent && a.category === step.category && (a.status === "ACTIVE" || step.kind === undefined));
     const key = Date.now() + Math.random();
     if (!policy) {
       setResults((r) => [{ key, step, reason: `${step.agent} has no active ${step.category} mandate. Press Reset demo.`, error: true }, ...r]);

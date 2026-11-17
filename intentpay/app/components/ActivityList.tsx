@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/app/components/ui";
 import { dollars } from "@/lib/format";
+import type { Side } from "@/lib/sides";
 import type { Activity } from "./types";
 
 const LABEL: Record<string, { text: string; color: "success" | "warning" | "danger" | "info" }> = {
@@ -13,7 +14,7 @@ const LABEL: Record<string, { text: string; color: "success" | "warning" | "dang
 const dayHeading = (iso: string) =>
   new Date(iso).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
 
-export function ActivityList({ items }: { items: Activity[] }) {
+export function ActivityList({ items, sideOf }: { items: Activity[]; sideOf?: (policyId: string | null) => Side | null }) {
   if (items.length === 0) {
     return <p className="text-sm text-gray-600">No activity yet. When your agent tries to pay, it shows up here.</p>;
   }
@@ -40,7 +41,10 @@ export function ActivityList({ items }: { items: Activity[] }) {
               return (
                 <li key={a.id} data-demo="activity-row" data-outcome={a.outcome} data-merchant={a.merchant ?? ""} className="space-y-1 py-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-gray-900">{a.merchant ?? "Unknown merchant"}</span>
+                    <span className="text-sm text-gray-900">
+                      {a.merchant ?? "Unknown merchant"}
+                      {sideOf?.(a.policyId) && <span className="ml-2 align-middle"><Badge color={sideOf(a.policyId) === "Business" ? "muted" : "info"}>{sideOf(a.policyId)}</Badge></span>}
+                    </span>
                     <span className="text-sm font-semibold text-gray-900">{dollars(shown)}</span>
                   </div>
                   <Badge color={l.color}>{l.text}</Badge>

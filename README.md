@@ -2,11 +2,12 @@
 
 Westpac Innovation and Coding Competition entry (Ctrl-Alt-Deposit).
 
-AI agents (ChatGPT, Gemini, Perplexity, ...) are about to spend customers' money. Card networks can check each agent's token, but **only the bank sees every agent at once**. Agent Payment Control is the bank-side layer that does that: one customer, many agents, each with its own mandates, all under one overall spending cap.
+AI agents (ChatGPT, Gemini, Perplexity, ...) are about to spend customers' money. Card networks can check each agent's token, but **no single agent token knows about the others, and the bank also sees the customer's whole account**. Agent Payment Control is the bank-side layer that uses that view: one customer, many agents, each with its own mandates, all under one overall spending cap.
 
 > **Everything involving a card network is simulated.** `network/` is a stand-in service, not Visa or Mastercard. No real money, cards or schemes are involved. It is modelled loosely on public descriptions of Visa Intelligent Commerce and Mastercard Agent Pay.
 
 ## The idea in 30 seconds
+- **One customer, a personal side and a business side.** In the demo ChatGPT works for the personal side and Gemini for the business side (a display chip only). The single overall cap covers both.
 - **Customer, then agents, then mandates.** An agent is an AI platform identity (ChatGPT, Gemini...). Its mandates say what it may spend, where, and how much. A purpose (groceries, travel) belongs to the mandate, not the agent.
 - **Overall cap across all agents** (for example $300 per week). The tighter of an agent's budget and the overall cap wins, so a payment can be cut down or declined even when the agent's own budget has room. No single token can see this.
 - **Rules decide, AI only advises.** Decisions come from deterministic rules (approve, approve narrower, ask the customer, decline). An optional AI check (Gemini) can only make the outcome *stricter*, never looser.
@@ -34,7 +35,7 @@ npm run dev            # http://localhost:3000
 cd network
 node server.mjs        # http://localhost:4000
 ```
-Open http://localhost:3000/agent (best in a phone-sized window). Press **Reset demo** on `/demo` any time to return to the seeded state: ChatGPT, Gemini and Perplexity with mandates, $240 of a $300 weekly cap already spent.
+**Then press Reset demo (on http://localhost:3000/demo) once both services are up.** The network keeps its tokens in memory, so after any restart of either service the tokens are gone until you reset. Skipping this is the usual cause of "it's broken" on a fresh machine. (The autoplay script does this for you.) Reset also returns the demo to the seeded state any time (ChatGPT, Gemini and Perplexity with mandates, $240 of a $300 weekly cap already spent). Then open http://localhost:3000/agent (best in a phone-sized window).
 
 **Optional Gemini.** Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) in `intentpay/.env.local` for the real AI check and rule reader. Without it, clearly labelled "demo fixture" stand-ins are used so everything still works.
 
@@ -43,12 +44,12 @@ Open http://localhost:3000/agent (best in a phone-sized window). Press **Reset d
 ## Demo scenes (`/demo`)
 | Scene | Shows |
 | --- | --- |
-| A | The overall cap wins over an agent's own budget |
-| B | New merchants go to the customer; lookalikes are declined |
+| A | The overall cap wins over an agent's own budget, across personal and business |
+| B | A new supplier (Paper & Co) goes to the customer; a lookalike (Offlceworks) is declined |
 | C | Network-only cancel vs bank revoke |
 | D | AI check: advisory, can only make decisions stricter |
-| E | Fixed-price vs flexible mandates |
-| F | A spoofed agent is blocked at the network |
+| E | Fixed-price supplier invoices vs flexible office supplies |
+| F | A spoofed agent (ChatGPT, personal) is blocked at the network |
 
 ## Autoplay video
 ```
@@ -62,6 +63,8 @@ npm run demo:record -- --scene A     # retake one scene
 See `demo-autoplay/README.md` and edit `demo-autoplay/src/beats.mjs` to change captions and timing.
 
 ## Known limits
+- **No bank-side caller authentication.** `/api/bank/decide` trusts whoever calls it. A real deployment would authenticate the network to the bank with mutual TLS or signed requests.
+- **Demo-only endpoints.** `/api/demo/reset`, `/api/demo/purchase` and `/api/demo/revoke` wipe data and play the agent. They only run when `NODE_ENV` is not `production`, or when `DEMO_MODE=true` is set. They exist only for the demo.
 - The legacy `/api/transaction/authorize` path is left untouched; the new flow goes through `/api/bank/decide`.
 - The overall cap counts spending made through this bank only.
 - Merchant recognition uses a stub (`lib/merchant-lookup.ts`) behind a stable interface, ready to swap for a real merchant database.

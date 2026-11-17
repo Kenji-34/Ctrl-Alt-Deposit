@@ -2,9 +2,13 @@
 // An agent is an AI platform identity (ChatGPT, Gemini, Perplexity). A purpose like "groceries"
 // belongs to a mandate, never to the agent.
 //
-// The $300/week overall cap is demonstrable: ChatGPT and Gemini each have a $150/week groceries mandate
-// (together $300), plus flights ($200/week) and subscriptions ($80/month). The seeded history leaves
-// $60 under the overall cap while Gemini's groceries mandate still has $80, so one purchase hits the cap first.
+// One customer with a personal side and a business side (a display tag only, see lib/sides.ts):
+//   ChatGPT (personal): groceries $150/week (flexible) and flights $200/week (fixed).
+//   Gemini (business): office supplies $150/week (flexible) and supplier invoices $80/month (fixed).
+// The single $300/week overall cap applies across both sides. The seeded history leaves $60 under the
+// overall cap while Gemini's office supplies mandate still has $80, so one purchase hits the cap first.
+// The two Gemini mandates name no single merchant (Officeworks is simply what it buys from), so a new
+// supplier is still sent to the customer to confirm.
 import db from "@/lib/db";
 import { randomUUID } from "node:crypto";
 import { registerAgent } from "@/lib/agents";
@@ -46,16 +50,16 @@ const SEED: { id: string; name: string; mandates: Mandate[] }[] = [
     name: "Gemini",
     mandates: [
       {
-        prompt: "Buy groceries for me, up to $150 a week. No gift cards or alcohol.",
-        maxAmountCents: 15000, category: "groceries", period: "week", amountType: "flexible",
+        prompt: "Buy office supplies for the business, mostly from Officeworks, up to $150 a week. No gift cards or alcohol.",
+        maxAmountCents: 15000, category: "office supplies", period: "week", amountType: "flexible",
         prohibitedItems: ["gift card", "alcohol"],
-        history: [{ merchant: "Coles", cents: 7000 }],
+        history: [{ merchant: "Officeworks", cents: 7000 }],
       },
       {
-        prompt: "Pay my streaming subscriptions, up to $80 a month.",
-        maxAmountCents: 8000, category: "subscriptions", period: "month", amountType: "fixed",
+        prompt: "Pay the business's supplier invoices, up to $80 a month.",
+        maxAmountCents: 8000, category: "supplier invoices", period: "month", amountType: "fixed",
         prohibitedItems: [],
-        history: [{ merchant: "Spotify", cents: 3000 }],
+        history: [{ merchant: "Domain renewal", cents: 3000 }],
       },
     ],
   },

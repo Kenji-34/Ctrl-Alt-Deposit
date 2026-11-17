@@ -1,11 +1,14 @@
 // Demo only: plays the part of an AI agent trying to pay.
 // Path: this route -> simulated card network /authorise -> bank /api/bank/decide.
 // It never calls the legacy /api/transaction/authorize route.
+import { demoDisabledResponse } from "@/lib/demo-mode";
 import db from "@/lib/db";
 import { activatePolicy, agentSign, networkAuthorise, registerIntent, NETWORK_DOWN } from "@/lib/network-client";
 import { createHmac, randomUUID } from "node:crypto";
 
 export async function POST(request: Request) {
+  const disabled = demoDisabledResponse();
+  if (disabled) return disabled;
   try {
     const b = await request.json();
     const amount = Number(b.amount);

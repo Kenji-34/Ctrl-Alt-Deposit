@@ -79,9 +79,10 @@ function skipped(why: string): AiNote {
 
 // ---- Demo fixture, used ONLY when there is no GEMINI_API_KEY ----
 // A small canned heuristic so the demo works offline. It is NOT AI, and the receipt labels it "fixture".
-const ALIASES: Record<string, string> = { woolies: "Woolworths", woolworths: "Woolworths", coles: "Coles", aldi: "Aldi" };
+const ALIASES: Record<string, string> = { woolies: "Woolworths", woolworths: "Woolworths", coles: "Coles", aldi: "Aldi", officeworks: "Officeworks" };
 const NON_FOOD = /\b(tv|television|laptop|phone|console|jewel\w*|watch|camera|headphones|tyres?|furniture|blender|toaster)\b/i;
 const FOOD = /\b(milk|bread|eggs?|fruit|veg\w*|meat|cheese|rice|pasta|cereal|chicken|butter|yoghurt|apples?|bananas?)\b/i;
+const OFFICE = /\b(paper|pens?|staples?|staplers?|toner|ink|folders?|notebooks?|envelopes?|stationery|labels?)\b/i;
 
 function fixtureCheck(i: AiCheckInput): AiNote {
   const base = { status: "ok" as const, source: "fixture" as const, enrichmentUsed: i.enrichmentUsed };
@@ -89,12 +90,17 @@ function fixtureCheck(i: AiCheckInput): AiNote {
   const key = Object.keys(ALIASES).find((k) => i.merchantName.toLowerCase().replace(/[^a-z]/g, "").includes(k));
   const who = key && ALIASES[key].toLowerCase() !== i.merchantName.toLowerCase() ? `"${i.merchantName}" looks like ${ALIASES[key]}. ` : "";
 
-  if (i.policy.category === "groceries" && text.trim()) {
+  const basketKinds: Record<string, { fits: RegExp; label: string; purchase: string }> = {
+    groceries: { fits: FOOD, label: "groceries", purchase: "a groceries purchase" },
+    "office supplies": { fits: OFFICE, label: "office supplies", purchase: "an office supplies purchase" },
+  };
+  const kind = basketKinds[i.policy.category];
+  if (kind && text.trim()) {
     const non = NON_FOOD.exec(text)?.[0];
-    const food = FOOD.test(text);
-    if (non && !food) return { ...base, consistent: false, confidence: 0.93, reason: `${who}The basket includes "${non}", which does not fit a groceries purchase.` };
-    if (non && food) return { ...base, consistent: false, confidence: 0.65, reason: `${who}Part of the basket ("${non}") does not look like groceries.` };
-    return { ...base, consistent: true, confidence: 0.85, reason: `${who}The items fit a groceries purchase.` };
+    const fits = kind.fits.test(text);
+    if (non && !fits) return { ...base, consistent: false, confidence: 0.93, reason: `${who}The basket includes "${non}", which does not fit ${kind.purchase}.` };
+    if (non && fits) return { ...base, consistent: false, confidence: 0.65, reason: `${who}Part of the basket ("${non}") does not look like ${kind.label}.` };
+    return { ...base, consistent: true, confidence: 0.85, reason: `${who}The items fit ${kind.purchase}.` };
   }
   return { ...base, consistent: true, confidence: key ? 0.8 : 0.6, reason: `${who}${text.trim() ? "The details fit" : "No basket detail was available; the merchant and category fit"} the customer's request.` };
 }

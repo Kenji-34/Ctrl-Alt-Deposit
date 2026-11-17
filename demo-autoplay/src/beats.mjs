@@ -41,9 +41,9 @@ export const story = [
 export const captions = {
   home: "This is the customer's bank. One row shows how much AI agents can still spend this week.",
   intro: [
-    "AI agents are about to spend your money. Card networks check each token, but only your bank sees all of them.",
+    "AI agents are about to spend your money. Each agent's token knows nothing about the others. Your bank sees your whole account.",
     "One overall cap protects you across every agent.",
-    "ChatGPT, Gemini and Perplexity: each with its own mandates.",
+    "ChatGPT works on the personal side, Gemini on the business side. One overall cap covers both.",
   ],
   claude: {
     register: "A new agent arrives. The card network, not the bank, says who it is.",
@@ -61,17 +61,17 @@ export const captions = {
   // Per scene: intro line, optional per-step overrides ("before"/"after"; index = step index in the scene).
   scenes: {
     A: {
-      intro: "Scene A: the overall cap wins.",
+      intro: "Scene A: the overall cap wins, across personal and business.",
       steps: {
-        0: { after: "Gemini's own budget has room, but the overall cap does not. Cut to what is left." },
-        2: { before: "A different agent, same cap: ChatGPT tries to book a $100 flight.", after: "Declined. No single token could see this." },
+        0: { after: "Gemini's business budget has room, but the overall cap does not. Cut to what is left." },
+        2: { before: "Now the personal side: ChatGPT tries to book a $100 flight.", after: "Declined. No single agent token knows about the others." },
       },
     },
     B: {
       intro: "Scene B: new merchants and lookalikes.",
       steps: {
-        0: { after: "A merchant the bank has never seen goes to the customer, not straight through." },
-        1: { before: "Then a lookalike of Coles: 'Cooles' for $20.", after: "Declined. Lookalikes are blocked outright." },
+        0: { after: "A supplier the bank has never seen goes to the customer, not straight through." },
+        1: { before: "Then a lookalike of Officeworks: 'Offlceworks' for $20.", after: "Declined. Lookalikes are blocked outright." },
       },
       approve: [0], // steps where the script taps Approve in the real UI
       approveNote: "The customer taps Approve in the real app.",

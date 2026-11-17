@@ -10,6 +10,7 @@ import { ActivityList } from "@/app/components/ActivityList";
 import { Alert, Button, Card, SectionTitle } from "@/app/components/ui";
 import { useSummary } from "@/app/components/useSummary";
 import { dollars } from "@/lib/format";
+import { sideOf } from "@/lib/sides";
 
 export default function AgentPage() {
   const { data, error, reload } = useSummary();
@@ -55,7 +56,10 @@ export default function AgentPage() {
       <AgentRegistry onChanged={reload} />
 
       <SectionTitle>Transactions</SectionTitle>
-      <ActivityList items={data?.activity ?? []} />
+      <ActivityList
+        items={data?.activity ?? []}
+        sideOf={(policyId) => sideOf(data?.agents.find((m) => m.id === policyId)?.agentName)}
+      />
 
       <p className="pt-4 text-center text-xs text-gray-500">
         <Link href="/demo" className="underline">Open the demo scenarios</Link>

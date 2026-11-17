@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge, Button, Card } from "@/app/components/ui";
 import { MandateCard } from "@/app/components/AgentCard";
+import { sideOf } from "@/lib/sides";
 import type { Agent, RegistryAgent } from "./types";
 
 // Customer -> agents -> mandates. An agent is an AI platform identity; purposes live on its mandates.
@@ -28,7 +29,10 @@ export function AgentSection({
     <Card data-demo={`agent-${agent.name}`} className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-base font-semibold text-gray-900">{agent.name}</p>
+          <p className="flex items-center gap-2 text-base font-semibold text-gray-900">
+            {agent.name}
+            {sideOf(agent.name) && <span data-demo="side-chip"><Badge color={sideOf(agent.name) === "Business" ? "muted" : "info"}>{sideOf(agent.name)}</Badge></span>}
+          </p>
           <p className="text-xs text-gray-500">{agent.type ?? "AI assistant"}</p>
           {agent.verified && (
             <p className="mt-1 text-xs font-medium text-gray-700">

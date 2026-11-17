@@ -23,6 +23,8 @@ npm install
 npm run dev                # http://localhost:3000
 ```
 
+**Then open `/demo` and press Reset demo once both services are up.** The network keeps its tokens in memory, so after any restart of either service the tokens are gone until you reset. A fresh machine that skips this will see failures.
+
 Optional: `GEMINI_API_KEY=...` in `intentpay/.env.local` enables the plain-English rule box on the new-card screen.
 The app works without it (rules can be typed in).
 
@@ -35,35 +37,36 @@ The app works without it (rules can be typed in).
 
 Following how the networks define it: an **agent is an AI platform identity** (ChatGPT, Gemini, Perplexity), not a spending
 purpose. Hierarchy: **customer -> agents -> mandates (policies)**. A purpose like "groceries" belongs to a mandate.
-Reasons and receipts name both: "ChatGPT's groceries mandate".
+Reasons and receipts name both: "ChatGPT's groceries mandate". The demo customer has a **personal side** (ChatGPT) and a **business side** (Gemini); a small Personal / Business chip on the Cards screen and the receipts shows which. It is a display tag only (`lib/sides.ts`, keyed by agent name), and the single overall cap still applies across both sides.
 
 ## Demo customer
 
-One customer, a **$300 per week overall cap** (editable on the Cards screen), three agents (type "AI assistant"):
+One customer with a personal and a business side, a single **$300 per week overall cap** (editable on the Cards screen), three agents (type "AI assistant"):
 
 | Agent | Mandate | Limit | Price type | Spent already (seeded) |
 |---|---|---|---|---|
-| ChatGPT | groceries | $150 / week | flexible | $80 |
-| ChatGPT | flights (travel) | $200 / week | fixed | $60 |
-| Gemini | groceries | $150 / week | flexible | $70 |
-| Gemini | subscriptions | $80 / month | fixed | $30 |
+| ChatGPT (personal) | groceries | $150 / week | flexible | $80 |
+| ChatGPT (personal) | flights (travel) | $200 / week | fixed | $60 |
+| Gemini (business) | office supplies | $150 / week | flexible | $70 |
+| Gemini (business) | supplier invoices | $80 / month | fixed | $30 |
 | Perplexity | none yet | | | |
 
-Both grocery mandates together are $300, and every mandate is inside its own budget, but the seeded history leaves only
-**$60** under the overall cap while Gemini's groceries mandate still has $80, so one purchase hits the cap first.
+The two $150 weekly mandates together are $300, and every mandate is inside its own budget, but the seeded history leaves only
+**$60** under the overall cap while Gemini's office supplies mandate still has $80, so one purchase hits the cap first.
+Gemini's mandates name no single merchant (Officeworks is simply what it buys from), so a new supplier is sent to the customer to confirm.
 **Reset demo** restores exactly this state.
 
-**Flexible vs fixed:** a flexible purchase (groceries) over what is left is approved for the smaller amount. A fixed-price
-purchase (a subscription, a flight) is never part-paid: it is approved in full or declined. The flag lives on the mandate
+**Flexible vs fixed:** a flexible purchase (groceries, office supplies) over what is left is approved for the smaller amount. A fixed-price
+purchase (a supplier invoice, a flight) is never part-paid: it is approved in full or declined. The flag lives on the mandate
 (`amountType`); a purchase can also mark itself fixed, which only makes the decision stricter.
 
 ### Scene A: the overall cap wins
-Gemini groceries $75 at Woolworths is **reduced to $60** (Gemini's own mandate had $80 left; the overall cap is tighter).
-Gemini $10 at Coles is **declined** (cap reached), and so is ChatGPT's flight, because the cap covers every agent.
+Gemini (business) office supplies $75 at Officeworks is **reduced to $60** (Gemini's own mandate had $80 left; the overall cap is tighter).
+Gemini $10 at Officeworks is **declined** (cap reached), and so is ChatGPT's (personal) flight, because the one cap covers both sides.
 
 ### Scene E: fixed price vs flexible
-Netflix $55 against the $50 left in Gemini's subscriptions mandate is **declined, not part-paid**. Spotify $12 fits and is
-approved. Woolworths $90 (flexible) is **reduced** instead of declined.
+A "Cloud hosting invoice" for $55 against the $50 left in Gemini's supplier invoices mandate is **declined, not part-paid**. A "Domain renewal" for $12 fits and is
+approved. Officeworks $90 (flexible) is **reduced** instead of declined.
 
 ### Scene F: a spoofed agent
 Press **Reset demo** first. An attacker holds ChatGPT's card token and claims to be ChatGPT, but cannot sign as ChatGPT: the
@@ -71,23 +74,24 @@ Press **Reset demo** first. An attacker holds ChatGPT's card token and claims to
 as network declines. The real ChatGPT, correctly signed, is approved.
 
 ### Scene C: cancel at the network vs revoke at the bank
-Press **Reset demo** first. A Gemini groceries purchase (approved) → "Cancel the instruction at the network only" → the
+Press **Reset demo** first. A Gemini office supplies purchase at Officeworks (approved) → "Cancel the instruction at the network only" → the
 already-issued card **still works** (modelled on Visa's documented behaviour: cancelling an instruction does not
 invalidate credentials already issued) → "Revoke at the bank" → the next payment is **declined by the bank** immediately,
 before the network has been told.
 
 ### Scene D: AI consistency check
-Press **Reset demo** first. Four purchases under Gemini's groceries mandate with basket details: plain groceries (passes), a mixed
-basket (**asks you**), a TV in a grocery basket (**blocked**), and a messy descriptor "WOOLIES*SYD" (the rules ask you
-because the merchant is unknown; the AI check adds a hint that it looks like Woolworths, but cannot approve it).
+Press **Reset demo** first. Four purchases under Gemini's office supplies mandate with basket details: plain office supplies (passes), a mixed
+basket (**asks you**), a TV in an office supplies basket (**blocked**), and a messy descriptor "OFFICEWORKS*SYD" (the rules ask you
+because the merchant is unknown; the AI check adds a hint that it looks like Officeworks, but cannot approve it).
 
 ### Scene B: new merchants
-Press **Reset demo** first. Fresh Harvest Market $30 goes to **ask customer**; approve it on the prompt and it goes
-through. "Cooles" is declined as a lookalike. A gift-card purchase is declined as a prohibited item.
+Press **Reset demo** first. Paper & Co $30 (a new supplier) goes to **ask customer**; approve it on the prompt and it goes
+through. "Offlceworks" (with an L) is declined as a lookalike of Officeworks. A gift-card purchase is declined as a prohibited item.
 Customer approval only resolves the unknown-merchant question. Budget, caps, prohibited items and lookalikes still apply.
 
 ## What changed on this branch
 
+- Personal / Business chips are display only: hard-coded by agent name in `lib/sides.ts` (ChatGPT personal, Gemini business). Newly registered agents show no chip, and there is no schema change.
 - Overall customer cap: `decide()` takes the tighter of the agent budget and the cap, records which limit applied.
 - Agent registry (`agents` table, with a type): mandates belong to agents. **Revoke agent** revokes all its mandates and tokens at the bank and the network. The Cards screen groups mandates under their agent, and the new-card flow asks which agent first.
 - Pending approvals for `ask_customer`, with approve/reject and receipts.
@@ -143,6 +147,8 @@ simulated network fields, the AI check (labelled separately) and a timeline.
 ## Known limits and what is left
 
 - The overall cap only covers spending made **through this bank**. It cannot see spending elsewhere.
-- Gemini rule generation has no offline fixture yet; without a key the box shows a notice.
+- Without a Gemini key the plain-English box uses a simple pattern reader (`lib/policy-fixture.ts`, not AI). It knows a handful of merchants and ignores the "never allowed" part of the sentence; the customer checks every field anyway.
+- **No bank-side caller authentication.** `/api/bank/decide` trusts whoever calls it. A real deployment would authenticate the network to the bank with mutual TLS or signed requests.
+- **Demo-only endpoints.** `/api/demo/reset`, `/api/demo/purchase` and `/api/demo/revoke` wipe data and play the agent. They only run when `NODE_ENV` is not `production`, or when `DEMO_MODE=true` is set. They exist only for the demo.
 - **Legacy path, left untouched:** `app/api/transaction/authorize/route.ts` (Kenji's original) is a separate decision path with a lifetime budget, no receipts and no overall cap. The demo and all UI use only `/api/bank/decide`. It should be retired or routed through `lib/bank-pipeline.ts`.
 - Not built yet: P2 items (cash-flow awareness, prompt-injection scene, agent-likelihood signal, AI-written explanations).
