@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       outcome: "decline",
       reason: typeof b.reason === "string" ? b.reason : "Declined by the network.",
       declinedBy: typeof b.declined_by === "string" ? b.declined_by : "network",
+      rule: typeof b.rule === "string" ? b.rule : "network_decline",
     });
 
     return Response.json({ receipt_id: receiptId });

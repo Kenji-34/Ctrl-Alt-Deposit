@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Shell } from "@/app/components/Shell";
-import { AgentCard } from "@/app/components/AgentCard";
+import { AgentSection } from "@/app/components/AgentSection";
 import { PendingApprovals } from "@/app/components/PendingApprovals";
 import { AgentRegistry } from "@/app/components/AgentRegistry";
 import { OverallCap } from "@/app/components/OverallCap";
@@ -30,7 +30,7 @@ export default function AgentPage() {
         </div>
         <div className="mt-3 flex justify-end">
           <Link href="/agent/new">
-            <Button look="primary" size="small">Add Policy</Button>
+            <Button look="primary" size="small">Add mandate</Button>
           </Link>
         </div>
       </Card>
@@ -38,11 +38,21 @@ export default function AgentPage() {
       {data?.overall && <OverallCap key={`${data.overall.limitCents}-${data.overall.period}`} overall={data.overall} onChanged={reload} />}
 
       <PendingApprovals items={data?.pending ?? []} onChanged={reload} />
-      {data?.registry && <AgentRegistry agents={data.registry} onChanged={reload} />}
-
-      <SectionTitle>Agent cards</SectionTitle>
-      {data && data.agents.length === 0 && <p className="text-sm text-gray-600">You have no agent cards yet.</p>}
-      {data?.agents.map((a) => <AgentCard key={a.id} agent={a} onChanged={reload} />)}
+      
+      <SectionTitle>Your AI agents</SectionTitle>
+      {data && (data.registry?.length ?? 0) === 0 && <p className="text-sm text-gray-600">You have no agents yet.</p>}
+      {data?.registry?.map((r) => (
+        <AgentSection key={r.id} agent={r} mandates={data.agents.filter((m) => m.agentId === r.id)} onChanged={reload} />
+      ))}
+      {/* Mandates not attached to a registered agent (created before agents existed) */}
+      {data && data.agents.some((m) => !m.agentId) && (
+        <AgentSection
+          agent={{ id: "unassigned", name: "Unassigned mandates", type: "No agent", status: "REVOKED", activeMandates: 0 }}
+          mandates={data.agents.filter((m) => !m.agentId)}
+          onChanged={reload}
+        />
+      )}
+      <AgentRegistry onChanged={reload} />
 
       <SectionTitle>Transactions</SectionTitle>
       <ActivityList items={data?.activity ?? []} />

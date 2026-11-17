@@ -199,3 +199,51 @@ test("AI note is attached as advisory on ask_customer without changing it", () =
   assert.equal(d.rule, "unknown_merchant");
   assert.equal(d.ai?.effect, "advisory");
 });
+
+// ---- Fixed-price vs flexible purchases, and agent/mandate names in reasons ----
+const subs: PolicyLike = {
+  maxAmountCents: 8000, currency: "AUD", merchant: "", category: "subscriptions",
+  prohibitedItems: [], needsClarification: false, amountType: "fixed",
+};
+const netflix = { name: "Netflix", category: "subscriptions" };
+
+test("fixed-price mandate over its budget is declined, never partly approved", () => {
+  const d = decide({ ...base, policy: subs, merchant: netflix, spentCents: 3000, amountCents: 5500 });
+  assert.equal(d.outcome, "decline");
+  assert.equal(d.rule, "fixed_amount_over_agent_budget");
+  assert.equal(d.approvedAmountCents, undefined);
+  assert.match(d.reason, /fixed-price/i);
+});
+
+test("fixed-price purchase over the overall cap is declined, never partly approved", () => {
+  const d = decide({ ...base, policy: subs, merchant: netflix, amountCents: 2000, customerCap: cap(30000, 29000) });
+  assert.equal(d.outcome, "decline");
+  assert.equal(d.rule, "fixed_amount_over_overall_cap");
+  assert.equal(d.limitedBy, "overall");
+});
+
+test("fixed-price purchase that fits is approved in full", () => {
+  const d = decide({ ...base, policy: subs, merchant: netflix, amountCents: 2000, customerCap: cap(30000, 10000) });
+  assert.equal(d.outcome, "approve");
+  assert.equal(d.approvedAmountCents, 2000);
+});
+
+test("a flexible mandate is still narrowed", () => {
+  const d = decide({ ...base, amountCents: 20000 });
+  assert.equal(d.outcome, "approve_narrower");
+});
+
+test("a purchase can mark itself fixed (stricter) but a purchase can never make a fixed mandate flexible", () => {
+  const strict = decide({ ...base, amountCents: 20000, fixedAmount: true });
+  assert.equal(strict.outcome, "decline");
+  const stillFixed = decide({ ...base, policy: subs, merchant: netflix, spentCents: 3000, amountCents: 5500, fixedAmount: false });
+  assert.equal(stillFixed.outcome, "decline");
+});
+
+test("reasons name the agent and the mandate", () => {
+  const labels = { agent: "ChatGPT", mandate: "groceries" };
+  assert.match(decide({ ...base, labels }).reason, /ChatGPT's groceries mandate/);
+  assert.match(decide({ ...base, labels, spentCents: 14000, amountCents: 5000 }).reason, /ChatGPT's groceries mandate/);
+  assert.match(decide({ ...base, labels, spentCents: 15000 }).reason, /ChatGPT's groceries mandate/);
+  assert.match(decide({ ...base, labels, merchant: { name: "Qantas", category: "travel" } }).reason, /ChatGPT's groceries mandate/);
+});

@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       amountCents,
       currency,
       description,
+      fixedAmount: b.amount_type === "fixed" ? true : undefined,
       intentRef: typeof b.intent_ref === "string" ? b.intent_ref : undefined,
       network: b.network && typeof b.network === "object" ? b.network : undefined,
     };

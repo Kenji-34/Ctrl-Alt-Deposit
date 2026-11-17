@@ -45,6 +45,9 @@ export function ActivityList({ items }: { items: Activity[] }) {
                   </div>
                   <Badge color={l.color}>{l.text}</Badge>
                   <p className="text-sm text-gray-700">{a.reason}</p>
+                  {a.declinedBy === "network" && (
+                    <p className="text-xs text-gray-500">Declined by the card network (simulated), before reaching the bank&apos;s rules</p>
+                  )}
                   <Link href={`/audit/${a.id}`} className="text-xs font-medium text-text-primary underline">View receipt</Link>
                   {a.ai && (
                     <p className="text-xs text-gray-600">

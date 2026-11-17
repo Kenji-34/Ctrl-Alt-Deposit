@@ -1,13 +1,38 @@
 // Mock card-network token service (stand-in for Visa VTS / Mastercard MDES).
 // Zero dependencies: needs Node 18+ (built-in fetch). Run: node server.mjs
 import http from "node:http";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const PORT = Number(process.env.PORT || 4000);
 const BANK_URL = process.env.BANK_URL || "http://localhost:3000";
 
 const vault = new Map(); // token id -> token record
 const log = []; // newest first
+// ---- Simulated agent identity ----
+// In a real system the network (or the scheme) establishes agent identity with cryptographic agent signatures
+// (e.g. Visa's agent signatures, Mastercard's registered agent tokens) and the bank relies on that attestation.
+// Here: a small registry of known agents, each with a simulated key. A real scheme would use asymmetric keys and
+// verify with the public key; this simulation uses an HMAC secret held only by the agent and the network.
+const AGENTS = ["ChatGPT", "Gemini", "Perplexity", "Claude", "Microsoft Copilot"].map((name) => {
+  const id = "agent_" + name.toLowerCase().replace(/[^a-z]/g, "").replace("microsoftcopilot", "copilot");
+  const secret = createHash("sha256").update("simulated-agent-secret:" + id).digest("hex");
+  return { id, name, type: "AI assistant", secret, public_key: "pk_sim_" + createHash("sha256").update(secret).digest("hex").slice(0, 24) };
+});
+const agentById = new Map(AGENTS.map((a) => [a.id, a]));
+const MAX_SKEW_MS = 5 * 60 * 1000;
+
+// What the agent signs for a payment attempt (simulated).
+function signingString({ token, agent_id, merchant, amount, timestamp }) {
+  return [token, agent_id, merchant?.name, merchant?.category, amount, timestamp].join("|");
+}
+function sign(secret, fields) {
+  return createHmac("sha256", secret).update(signingString(fields)).digest("hex");
+}
+function sameSig(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 const intents = new Map(); // intent_ref -> { description, line_items } (simulated Order ID lookup)
 
 function record(entry) {
@@ -47,6 +72,10 @@ async function createToken(body) {
   const { card_ref, agent_id, scope, expiry, policy_id } = body;
   if (!card_ref || !agent_id || !scope || !expiry) {
     return [400, { error: "card_ref, agent_id, scope and expiry are required" }];
+  }
+  if (!agentById.has(agent_id)) {
+    record({ type: "provision", agent_id, result: "declined", reason: "agent is not in the network's agent registry" });
+    return [403, { approved: false, reason: `Agent "${agent_id}" is not in the network's agent registry, so no token can be issued.` }];
   }
   let decision;
   try {
@@ -91,6 +120,12 @@ async function authorise(body) {
   else if (t.status !== "active") netReason = `token is ${t.status}`;
   else if (new Date(t.expiry) < new Date()) netReason = "token expired";
   else if (!merchant || typeof amount !== "number") netReason = "merchant and numeric amount required";
+  else if (!body.signature) netReason = "agent signature missing";
+  else if (!agentById.has(body.agent_id)) netReason = "agent is not in the network's agent registry";
+  else if (body.agent_id !== t.agent_id) netReason = "agent identity does not match the agent this token is bound to";
+  else if (!body.timestamp || Math.abs(Date.now() - Number(body.timestamp)) > MAX_SKEW_MS) netReason = "agent signature is stale or has no timestamp";
+  else if (!sameSig(body.signature, sign(agentById.get(body.agent_id).secret, { token: id, agent_id: body.agent_id, merchant, amount, timestamp: body.timestamp })))
+    netReason = "agent signature invalid";
   else if (t.scope.categories && !t.scope.categories.map((c) => c.toLowerCase()).includes(String(merchant.category).toLowerCase()))
     netReason = `category '${merchant.category}' not allowed for this token`;
   else if (t.scope.max_per_txn != null && amount > t.scope.max_per_txn)
@@ -100,7 +135,7 @@ async function authorise(body) {
     record({ type: "authorise", token: id, merchant: merchant?.name, amount, result: "declined_by_network", reason: netReason });
     if (t) {
       // best effort: bank still gets a receipt for every attempt
-      callBank("/api/bank/decline-notice", { token: id, card_ref: t.card_ref, agent_id: t.agent_id, policy_id: t.policy_id, merchant, amount, reason: netReason, declined_by: "network" }).catch(() => {});
+      callBank("/api/bank/decline-notice", { token: id, card_ref: t.card_ref, agent_id: t.agent_id, policy_id: t.policy_id, merchant, amount, reason: netReason, declined_by: "network", rule: netReason.startsWith("agent ") ? "network_agent_verification" : "network_scope" }).catch(() => {});
     }
     return [200, { outcome: "decline", declined_by: "network", reason: netReason }];
   }
@@ -110,6 +145,7 @@ async function authorise(body) {
       token: id, card_ref: t.card_ref, agent_id: t.agent_id, policy_id: t.policy_id,
       merchant, amount, currency: body.currency || "AUD", description: body.description, request_id: body.request_id,
       intent_ref,
+      amount_type: body.amount_type,
       network: {
         simulated: true,
         instruction_id: t.instruction_id,
@@ -117,6 +153,8 @@ async function authorise(body) {
         mandate_id: t.mandate_id,
         purchase_type: t.purchase_type,
         agentic_token: t.agentic_token,
+        agent_verified: true, // the network verified the agent's signature (simulated)
+        agent_signature_scheme: "HMAC-SHA256 (simulated)",
         cryptogram: randomBytes(8).toString("hex"), // one-time, per authorisation
         intent_ref: intent_ref || null,
       },
@@ -134,13 +172,13 @@ const PAGE = `<!doctype html><meta charset="utf-8"><title>Network token service 
 <style>body{font:14px system-ui;margin:24px;max-width:1000px}table{border-collapse:collapse;width:100%;margin-bottom:24px}
 td,th{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f4f4f4}h2{margin:16px 0 8px}</style>
 <h1>Simulated card network <small>(stand-in for a Visa / Mastercard token service)</small></h1>
-<h2>Token vault</h2><table id="v"></table><h2>Activity</h2><table id="l"></table>
+<h2>Agent registry <small>(simulated)</small></h2><table id="a"></table><h2>Token vault</h2><table id="v"></table><h2>Activity</h2><table id="l"></table>
 <script>
 function fill(id,cols,rows){const t=document.getElementById(id);t.textContent="";
 const h=t.insertRow();cols.forEach(c=>{const th=document.createElement("th");th.textContent=c;h.appendChild(th)});
 rows.forEach(r=>{const tr=t.insertRow();cols.forEach(c=>{const v=r[c];tr.insertCell().textContent=v==null?"":typeof v==="object"?JSON.stringify(v):v})})}
-async function tick(){const v=await (await fetch("/tokens")).json();const l=await (await fetch("/log")).json();
-fill("v",["token","agent_id","card_ref","status","expiry","scope"],v);
+async function tick(){const a=await (await fetch("/agents")).json();fill("a",["id","name","type","public_key"],a);const v=await (await fetch("/tokens")).json();const l=await (await fetch("/log")).json();
+fill("v",["token","agent_id","instruction_status","status","expiry","scope"],v);
 fill("l",["time","type","token","merchant","amount","result","reason"],l)}
 tick();setInterval(tick,2000);
 </script>`;
@@ -168,6 +206,18 @@ http.createServer(async (req, res) => {
       t.status = "revoked";
       record({ type: "revoke", token: t.token, agent_id: t.agent_id, result: "revoked" });
       return send(res, 200, t);
+    }
+    // Public agent registry. Secrets are never listed.
+    if (req.method === "GET" && path === "/agents") {
+      return send(res, 200, AGENTS.map(({ id, name, type, public_key }) => ({ id, name, type, public_key, verified: true })));
+    }
+    // Simulated AGENT RUNTIME: lets the demo act as an agent that holds its own secret and signs a request.
+    // (A real agent signs locally; the bank never sees agent secrets.)
+    if (req.method === "POST" && path === "/demo/agent-sign") {
+      const b = await readJson(req);
+      const a = agentById.get(b.agent_id);
+      if (!a) return send(res, 404, { error: "unknown agent" });
+      return send(res, 200, { signature: sign(a.secret, b) });
     }
     if (req.method === "POST" && path === "/intents") {
       const b = await readJson(req);

@@ -40,6 +40,7 @@ export async function GET() {
           status: r.status, // ACTIVE | REVOKED
           merchant: policy.merchant,
           category: policy.category,
+          amountType: policy.amountType,
           period: policy.period,
           limitCents: policy.maxAmountCents,
           spentCents: spent.total,
@@ -97,6 +98,9 @@ export async function GET() {
     const registryOut = registry.map((a) => ({
       id: a.id,
       name: a.name,
+      type: a.type ?? "AI assistant",
+      networkAgentId: a.network_agent_id,
+      verified: a.network_verified === 1,
       status: a.status,
       activeMandates: agents.filter((x) => x.agentId === a.id && x.status === "ACTIVE").length,
     }));

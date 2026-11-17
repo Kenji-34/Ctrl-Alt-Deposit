@@ -28,6 +28,8 @@ export type Rule =
   | "overall_cap_narrowed"
   | "within_policy"
   | "customer_confirmed"
+  | "fixed_amount_over_agent_budget"
+  | "fixed_amount_over_overall_cap"
   | "ai_mismatch_ask"
   | "ai_mismatch_decline";
 
@@ -42,6 +44,7 @@ export type PolicyLike = {
   category: string;
   prohibitedItems: string[];
   needsClarification: boolean;
+  amountType?: "flexible" | "fixed"; // fixed-price purchases are never partly approved
 };
 
 // The customer-wide cap across ALL of the customer's agents.
@@ -63,6 +66,10 @@ export type DecideInput = {
   // Set only when the customer has just approved an "ask customer" prompt.
   // It can resolve the unknown-merchant question and nothing else.
   customerConfirmed?: boolean;
+  // This purchase has a fixed price (so it can never be partly approved). Can only make the decision stricter.
+  fixedAmount?: boolean;
+  // Names used in reasons: "ChatGPT's groceries mandate".
+  labels?: { agent?: string; mandate?: string };
 };
 
 // Advisory result of the AI consistency check. It can only make an outcome stricter.
@@ -93,6 +100,9 @@ const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 export function decide(i: DecideInput): Decision {
   const { policy, merchant } = i;
+  const who =
+    i.labels?.agent && i.labels?.mandate ? `${i.labels.agent}'s ${i.labels.mandate} mandate` : null;
+  const budgetName = who ?? "this agent's budget";
 
   if (!policy) {
     return { outcome: "decline", rule: "no_policy", reason: "There is no active policy for this agent. It may have been revoked by the customer." };
@@ -131,7 +141,7 @@ export function decide(i: DecideInput): Decision {
     return {
       outcome: "decline",
       rule: "category_mismatch",
-      reason: `This purchase is in '${merchant.category}', but the policy only allows '${policy.category}'.`,
+      reason: `This purchase is in '${merchant.category}', but ${who ?? "the policy"} only allows '${policy.category}'.`,
     };
   }
 
@@ -160,7 +170,7 @@ export function decide(i: DecideInput): Decision {
       return {
         outcome: "decline",
         rule: "overall_cap_exhausted",
-        reason: `Your overall cap of ${dollars(cap.limitCents)} ${cap.periodLabel} has been reached across all your agents (${dollars(cap.spentCents)} spent), so this payment was declined.`,
+        reason: `Your overall cap of ${dollars(cap.limitCents)} ${cap.periodLabel} has been reached across all your agents (${dollars(cap.spentCents)} spent), so the payment ${who ? `under ${who} ` : ""}was declined.`,
         remainingBudgetCents: agentRemaining,
         remainingAgentCents: agentRemaining,
         remainingOverallCents: 0,
@@ -170,7 +180,9 @@ export function decide(i: DecideInput): Decision {
     return {
       outcome: "decline",
       rule: "agent_budget_exhausted",
-      reason: `The agent budget of ${dollars(policy.maxAmountCents)} has been fully used.`,
+      reason: who
+        ? `${who[0].toUpperCase()}${who.slice(1)} has used its full ${dollars(policy.maxAmountCents)} budget.`
+        : `The agent budget of ${dollars(policy.maxAmountCents)} has been fully used.`,
       remainingBudgetCents: 0,
       remainingAgentCents: 0,
       remainingOverallCents: overallOut,
@@ -193,10 +205,25 @@ export function decide(i: DecideInput): Decision {
   }
 
   if (i.amountCents > remaining) {
+    // A fixed-price purchase (a subscription, a flight) cannot be partly paid. Never narrow it.
+    if (i.fixedAmount === true || policy.amountType === "fixed") {
+      const byOverall = limitedBy === "overall" && cap;
+      return {
+        outcome: "decline",
+        rule: byOverall ? "fixed_amount_over_overall_cap" : "fixed_amount_over_agent_budget",
+        reason: byOverall
+          ? `This is a fixed-price purchase of ${dollars(i.amountCents)}, but your overall cap of ${dollars(cap!.limitCents)} ${cap!.periodLabel} leaves only ${dollars(remaining)} across all your agents. A fixed price cannot be partly approved, so the payment${who ? ` under ${who}` : ""} was declined.`
+          : `This is a fixed-price purchase of ${dollars(i.amountCents)}, but only ${dollars(remaining)} is left in ${budgetName}. A fixed price cannot be partly approved, so it was declined.`,
+        remainingBudgetCents: agentRemaining,
+        remainingAgentCents: agentRemaining,
+        remainingOverallCents: overallOut,
+        limitedBy,
+      };
+    }
     const reason =
       limitedBy === "overall" && cap
-        ? `Your overall cap of ${dollars(cap.limitCents)} ${cap.periodLabel} leaves only ${dollars(remaining)} across all your agents, so ${dollars(remaining)} was approved instead of ${dollars(i.amountCents)}.`
-        : `Only ${dollars(remaining)} is left in this agent's budget, so ${dollars(remaining)} was approved instead of ${dollars(i.amountCents)}.`;
+        ? `Your overall cap of ${dollars(cap.limitCents)} ${cap.periodLabel} leaves only ${dollars(remaining)} across all your agents, so ${dollars(remaining)} was approved${who ? ` under ${who}` : ""} instead of ${dollars(i.amountCents)}.`
+        : `Only ${dollars(remaining)} is left in ${budgetName}, so ${dollars(remaining)} was approved instead of ${dollars(i.amountCents)}.`;
     return {
       outcome: "approve_narrower",
       rule: limitedBy === "overall" ? "overall_cap_narrowed" : "agent_budget_narrowed",
@@ -213,7 +240,7 @@ export function decide(i: DecideInput): Decision {
   const overallLeft = cap ? overallRemaining - i.amountCents : undefined;
   const confirmed = needsAsk && i.customerConfirmed;
   const tail =
-    `${dollars(agentLeft)} left in this agent's budget` +
+    `${dollars(agentLeft)} left in ${budgetName}` +
     (overallLeft !== undefined ? ` and ${dollars(overallLeft)} left under your overall cap` : "") +
     ".";
   return {
@@ -221,7 +248,7 @@ export function decide(i: DecideInput): Decision {
     rule: confirmed ? "customer_confirmed" : "within_policy",
     reason: confirmed
       ? `The customer confirmed this payment to "${merchant.name}". ${tail}`
-      : `Verified merchant and within the customer's policy. ${tail}`,
+      : `Verified merchant and within ${who ?? "the customer's policy"}. ${tail}`,
     approvedAmountCents: i.amountCents,
     remainingBudgetCents: agentLeft,
     remainingAgentCents: agentLeft,

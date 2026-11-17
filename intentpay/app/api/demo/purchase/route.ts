@@ -1,8 +1,9 @@
 // Demo only: plays the part of an AI agent trying to pay.
 // Path: this route -> simulated card network /authorise -> bank /api/bank/decide.
 // It never calls the legacy /api/transaction/authorize route.
-import { activatePolicy, networkAuthorise, registerIntent, NETWORK_DOWN } from "@/lib/network-client";
-import { randomUUID } from "node:crypto";
+import db from "@/lib/db";
+import { activatePolicy, agentSign, networkAuthorise, registerIntent, NETWORK_DOWN } from "@/lib/network-client";
+import { createHmac, randomUUID } from "node:crypto";
 
 export async function POST(request: Request) {
   try {
@@ -33,14 +34,39 @@ export async function POST(request: Request) {
           })
         : null;
 
+    // Who is the agent? The id the network knows it by.
+    const owner = db
+      .prepare(`SELECT a.network_agent_id AS id FROM policies p LEFT JOIN agents a ON a.id = p.agent_id WHERE p.id = ?`)
+      .get(b.policyId) as { id: string | null } | undefined;
+    const agentId = owner?.id ?? "unknown_agent";
+    const merchant = { name: b.merchant, category: b.category };
+    const timestamp = Date.now();
+
+    // The AGENT signs the request (simulated). Spoof modes act as an attacker who has the agent's token
+    // (and claims its identity) but does not hold the agent's secret.
+    let signature: string | undefined;
+    if (b.spoof === "missing") {
+      signature = undefined;
+    } else if (b.spoof === "bad_signature") {
+      signature = createHmac("sha256", "attacker-guessed-secret")
+        .update([token, agentId, merchant.name, merchant.category, amount, timestamp].join("|"))
+        .digest("hex");
+    } else {
+      signature = (await agentSign({ agent_id: agentId, token, merchant, amount, timestamp })) ?? undefined;
+    }
+
     try {
       const result = await networkAuthorise({
+        agent_id: agentId,
+        timestamp,
+        signature,
         token,
-        merchant: { name: b.merchant, category: b.category },
+        merchant,
         amount,
         currency: "AUD",
         description: typeof b.description === "string" ? b.description : undefined,
         intent_ref: intentRef ?? undefined,
+        amount_type: b.fixedAmount === true ? "fixed" : undefined,
         request_id: typeof b.requestId === "string" ? b.requestId : randomUUID(),
       });
       return Response.json(result);

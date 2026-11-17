@@ -26,9 +26,13 @@ export async function activatePolicy(policyId: string): Promise<ActivateResult> 
   if (existing && existing.status === "active") return { ok: true, token: existing.token, expiry: existing.expiry };
 
   const expiry = new Date(Date.now() + TOKEN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // The network agent id comes from the agent registered at the bank (identity is the network's call).
+  const agentRow = row.agent_id
+    ? (db.prepare(`SELECT network_agent_id FROM agents WHERE id = ?`).get(row.agent_id) as { network_agent_id: string | null } | undefined)
+    : undefined;
   const body = {
     card_ref: "card_" + policyId.slice(0, 8),
-    agent_id: row.agent_id ?? "agent_" + policyId.slice(0, 8),
+    agent_id: agentRow?.network_agent_id ?? row.agent_id ?? "agent_" + policyId.slice(0, 8),
     policy_id: policyId,
     expiry,
     scope: {
@@ -149,5 +153,36 @@ export async function cancelInstructionAtNetwork(token: string): Promise<boolean
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+// ---- Simulated agent identity ----
+
+export type NetworkAgent = { id: string; name: string; type: string; public_key: string; verified: boolean };
+
+// The network's registry of known agents (public info only).
+export async function fetchNetworkAgents(): Promise<NetworkAgent[] | null> {
+  try {
+    const res = await fetch(`${NETWORK_URL}/agents`, { signal: AbortSignal.timeout(3000), cache: "no-store" });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Simulated agent runtime: the agent signs its own request. (Demo only; the bank never holds agent secrets.)
+export async function agentSign(fields: {
+  agent_id: string; token: string; merchant: { name: string; category: string }; amount: number; timestamp: number;
+}): Promise<string | null> {
+  try {
+    const res = await fetch(`${NETWORK_URL}/demo/agent-sign`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(fields),
+      signal: AbortSignal.timeout(3000),
+    });
+    return res.ok ? (await res.json()).signature : null;
+  } catch {
+    return null;
   }
 }

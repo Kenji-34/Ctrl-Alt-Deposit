@@ -59,7 +59,7 @@ export default function Home() {
             number="123-456 12345678"
             amount={dollars(budgetLeft)}
             note={
-              `${active.length} active agent ${active.length === 1 ? "card" : "cards"}` +
+              `${data?.registry?.filter((r) => r.status === "ACTIVE").length ?? 0} agents · ${active.length} ${active.length === 1 ? "mandate" : "mandates"}` +
               (data?.overall ? ` · ${dollars(data.overall.remainingCents)} left of overall cap` : "")
             }
           />

@@ -8,6 +8,7 @@ export type Agent = {
   status: "ACTIVE" | "REVOKED" | string;
   merchant: string;
   category: string;
+  amountType?: "flexible" | "fixed";
   period: Period;
   limitCents: number;
   spentCents: number;
@@ -52,7 +53,11 @@ export type Pending = {
   aiNote?: string | null;
 };
 
-export type RegistryAgent = { id: string; name: string; status: string; activeMandates: number };
+export type RegistryAgent = {
+  id: string; name: string; type?: string; status: string; activeMandates: number;
+  networkAgentId?: string | null;
+  verified?: boolean; // identity verified by the (simulated) network
+};
 
 export type Summary = {
   agents: Agent[];

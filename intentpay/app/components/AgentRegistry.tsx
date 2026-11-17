@@ -1,63 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { Badge, Button, Card, Input } from "@/app/components/ui";
-import type { RegistryAgent } from "./types";
+import { useCallback, useEffect, useState } from "react";
+import { Button, Card, Select } from "@/app/components/ui";
 
-// The customer's AI agents. Revoking an agent stops every card it holds, at the bank and the network.
-export function AgentRegistry({ agents, onChanged }: { agents: RegistryAgent[]; onChanged: () => void }) {
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
+type Known = { id: string; name: string; type: string };
+
+// Agent identity is established by the NETWORK. The customer picks from the network's agent registry
+// (simulated); the bank stores the network's agent id and relies on its attestation.
+export function AgentRegistry({ onChanged }: { onChanged: () => void }) {
+  const [options, setOptions] = useState<Known[]>([]);
+  const [pick, setPick] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agents/available", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      const list: Known[] = await res.json();
+      setOptions(list);
+      setPick((cur) => (list.some((a) => a.id === cur) ? cur : list[0]?.id ?? ""));
+      setError(null);
+    } catch {
+      setOptions([]);
+      setError("The simulated card network is not reachable, so its agent registry can't be shown. Start the network and refresh.");
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   async function add() {
     setError(null);
     const res = await fetch("/api/agents", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ networkAgentId: pick }),
     });
-    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not add agent.");
-    setName("");
-    onChanged();
-  }
-
-  async function revoke(a: RegistryAgent) {
-    if (!window.confirm(`Revoke ${a.name}? All of its cards stop working immediately.`)) return;
-    setBusy(a.id);
-    await fetch("/api/agents/revoke", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ agentId: a.id }),
-    });
-    setBusy(null);
+    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not register the agent.");
+    await load();
     onChanged();
   }
 
   return (
-    <Card className="space-y-3">
-      <p className="text-sm font-medium text-gray-900">Your agents</p>
-      <ul className="divide-y divide-gray-200">
-        {agents.map((a) => (
-          <li key={a.id} className="flex items-center justify-between gap-2 py-2">
-            <div>
-              <p className="text-sm text-gray-900">{a.name}</p>
-              <p className="text-xs text-gray-500">{a.activeMandates} active {a.activeMandates === 1 ? "card" : "cards"}</p>
-            </div>
-            {a.status === "ACTIVE" ? (
-              <Button look="faint" size="small" className="border-border-primary! text-text-primary!" disabled={busy === a.id} onClick={() => revoke(a)}>
-                Revoke agent
-              </Button>
-            ) : (
-              <Badge color="muted">Revoked</Badge>
-            )}
-          </li>
-        ))}
-      </ul>
-      <div className="flex gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Register a new agent" aria-label="New agent name" />
-        <Button look="faint" size="small" onClick={add} disabled={name.trim().length < 2}>Add</Button>
-      </div>
+    <Card className="space-y-2">
+      <p className="text-sm font-medium text-gray-900">Register an AI agent</p>
+      <p className="text-xs text-gray-500">
+        Pick from the card network&apos;s agent registry (simulated). The network verifies who an agent is; the bank relies on that.
+      </p>
+      {options.length > 0 ? (
+        <div className="flex gap-2">
+          <Select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Agent from the network registry">
+            {options.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+          <Button look="faint" size="small" onClick={add} disabled={!pick}>Register</Button>
+        </div>
+      ) : (
+        !error && <p className="text-sm text-gray-600">Every agent in the network registry is already registered.</p>
+      )}
       {error && <p className="text-xs text-text-primary">{error}</p>}
     </Card>
   );

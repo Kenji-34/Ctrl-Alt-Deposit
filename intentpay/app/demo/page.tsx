@@ -10,20 +10,21 @@ import { dollars } from "@/lib/format";
 type Step = {
   agent: string; merchant: string; category: string; amount: number; description?: string; note: string;
   kind?: "buy" | "netcancel" | "bankrevoke";
+  fixedAmount?: boolean; // this purchase has a fixed price
+  spoof?: "bad_signature" | "missing"; // an attacker using the agent's token without its secret
   lineItems?: string[]; // basket details, registered with the simulated network and fetched by the bank by reference
 };
 
 const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
   {
     id: "A",
-    title: "Scene A: three agents, one overall cap",
+    title: "Scene A: the overall cap wins",
     blurb:
-      "Each agent stays inside its own budget, but together they would spend more than your $300 weekly cap. The bank sees all of them; a single card token cannot.",
+      "This week ChatGPT has spent $140 and Gemini $100, so $60 is left under the $300 cap. Gemini's own groceries mandate still has $80, but the overall cap is tighter. The bank sees every agent; no single card token can.",
     steps: [
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 140, note: "Weekly shop" },
-      { agent: "Flights agent", merchant: "Qantas", category: "travel", amount: 150, note: "Flight to Sydney" },
-      { agent: "Subscriptions agent", merchant: "Netflix", category: "subscriptions", amount: 40, note: "Streaming bundle" },
-      { agent: "Subscriptions agent", merchant: "Spotify", category: "subscriptions", amount: 20, note: "Music" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 75, note: "Groceries, within Gemini's own budget" },
+      { agent: "Gemini", merchant: "Coles", category: "groceries", amount: 10, note: "More groceries" },
+      { agent: "ChatGPT", merchant: "Qantas", category: "travel", amount: 100, fixedAmount: true, note: "A different agent, same cap" },
     ],
   },
   {
@@ -32,9 +33,9 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
     blurb:
       "Reset first. A merchant the bank has never seen is sent to you to confirm. A lookalike of a known merchant and a prohibited item are declined outright.",
     steps: [
-      { agent: "Grocery agent", merchant: "Fresh Harvest Market", category: "groceries", amount: 30, note: "New merchant" },
-      { agent: "Grocery agent", merchant: "Cooles", category: "groceries", amount: 20, note: "Lookalike of Coles" },
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 25, description: "Gift card bundle", note: "Prohibited item" },
+      { agent: "Gemini", merchant: "Fresh Harvest Market", category: "groceries", amount: 30, note: "New merchant" },
+      { agent: "Gemini", merchant: "Cooles", category: "groceries", amount: 20, note: "Lookalike of Coles" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 25, description: "Gift card bundle", note: "Prohibited item" },
     ],
   },
   {
@@ -43,11 +44,11 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
     blurb:
       "Cancelling at the network only stops future credentials, so a card that was already issued keeps working. A bank-side revoke blocks the very next payment. Reset first.",
     steps: [
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 20, note: "Normal purchase" },
-      { kind: "netcancel", agent: "Grocery agent", merchant: "Network", category: "", amount: 0, note: "Cancel the instruction at the network only" },
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 20, note: "Already-issued card still works" },
-      { kind: "bankrevoke", agent: "Grocery agent", merchant: "Bank", category: "", amount: 0, note: "Revoke at the bank" },
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 20, note: "Blocked immediately" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 20, note: "Normal purchase" },
+      { kind: "netcancel", agent: "Gemini", category: "groceries", merchant: "Network", amount: 0, note: "Cancel the instruction at the network only" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 20, note: "Already-issued card still works" },
+      { kind: "bankrevoke", agent: "Gemini", category: "groceries", merchant: "Bank", amount: 0, note: "Revoke at the bank" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 20, note: "Blocked immediately" },
     ],
   },
   {
@@ -56,10 +57,32 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
     blurb:
       "The rules decide first. The AI check only runs on payments the rules did not decline, and it can only make the outcome stricter. Reset first. Without a Gemini key a clearly labelled demo fixture stands in.",
     steps: [
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 30, lineItems: ["milk", "bread", "eggs"], note: "Plain groceries: passes" },
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 60, lineItems: ["milk", "a blender"], note: "Mixed basket: asks you" },
-      { agent: "Grocery agent", merchant: "Woolworths", category: "groceries", amount: 90, lineItems: ["55-inch TV"], note: "Right merchant, wrong basket: blocked" },
-      { agent: "Grocery agent", merchant: "WOOLIES*SYD", category: "groceries", amount: 25, lineItems: ["bread", "chicken"], note: "Messy descriptor: asks you, with an AI hint" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 12, lineItems: ["milk", "bread", "eggs"], note: "Plain groceries: passes" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 18, lineItems: ["milk", "a blender"], note: "Mixed basket: asks you" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 25, lineItems: ["55-inch TV"], note: "Right merchant, wrong basket: blocked" },
+      { agent: "Gemini", merchant: "WOOLIES*SYD", category: "groceries", amount: 9, lineItems: ["bread", "chicken"], note: "Messy descriptor: asks you, with an AI hint" },
+    ],
+  },
+  {
+    id: "E",
+    title: "Scene E: fixed price vs flexible",
+    blurb:
+      "Groceries are flexible, so a bank can approve less. A subscription has one price, so a part-payment makes no sense: it is approved in full or declined. Reset first.",
+    steps: [
+      { agent: "Gemini", merchant: "Netflix", category: "subscriptions", amount: 55, note: "Fixed price, more than the $50 left: declined" },
+      { agent: "Gemini", merchant: "Spotify", category: "subscriptions", amount: 12, note: "Fixed price that fits: approved" },
+      { agent: "Gemini", merchant: "Woolworths", category: "groceries", amount: 90, note: "Flexible: reduced instead of declined" },
+    ],
+  },
+  {
+    id: "F",
+    title: "Scene F: a spoofed agent (simulated agent identity)",
+    blurb:
+      "Agent identity is established by the network, not the bank. An attacker holds ChatGPT's card token and claims to be ChatGPT, but cannot sign as ChatGPT. The network blocks it, and the bank still records the attempt. Real systems use cryptographic agent identity such as Visa's agent signatures or Mastercard's registered agent tokens. Reset first.",
+    steps: [
+      { agent: "ChatGPT", merchant: "Woolworths", category: "groceries", amount: 30, spoof: "bad_signature", note: "Spoofed 'ChatGPT', bad signature: blocked at the network" },
+      { agent: "ChatGPT", merchant: "Woolworths", category: "groceries", amount: 30, spoof: "missing", note: "No signature at all: blocked at the network" },
+      { agent: "ChatGPT", merchant: "Woolworths", category: "groceries", amount: 30, note: "The real ChatGPT, correctly signed: approved" },
     ],
   },
 ];
@@ -88,13 +111,13 @@ export default function DemoPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [next, setNext] = useState<Record<string, number>>({ A: 0, B: 0, C: 0, D: 0 });
+  const [next, setNext] = useState<Record<string, number>>({ A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 });
 
   async function runStep(sceneId: string, step: Step) {
     const policy = data?.agents.find((a) => a.agentName === step.agent && (a.status === "ACTIVE" || step.kind === undefined) );
     const key = Date.now() + Math.random();
     if (!policy) {
-      setResults((r) => [{ key, step, reason: `${step.agent} has no active card. Press Reset demo.`, error: true }, ...r]);
+      setResults((r) => [{ key, step, reason: `${step.agent} has no active ${step.category} mandate. Press Reset demo.`, error: true }, ...r]);
       return;
     }
     if (step.kind === "netcancel" || step.kind === "bankrevoke") {
@@ -122,7 +145,7 @@ export default function DemoPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           policyId: policy.id, merchant: step.merchant, category: step.category,
-          amount: step.amount, description: step.description, lineItems: step.lineItems,
+          amount: step.amount, description: step.description, lineItems: step.lineItems, fixedAmount: step.fixedAmount, spoof: step.spoof,
         }),
       });
       const d = await res.json();
@@ -154,10 +177,10 @@ export default function DemoPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Reset failed");
       setResults([]);
-      setNext({ A: 0, B: 0, C: 0, D: 0 });
+      setNext({ A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 });
       setNotice(
         d.networkReset
-          ? "Demo reset. Three agents re-created with a $300 per week overall cap."
+          ? "Demo reset. ChatGPT, Gemini and Perplexity re-created with their mandates, $240 already spent this week and a $300 per week overall cap."
           : "Bank data reset, but the simulated card network is not running. Start it (node server.mjs in /network), then press Reset demo again."
       );
     } catch (e) {
@@ -173,7 +196,7 @@ export default function DemoPage() {
   return (
     <Shell back="/agent" tab="Cards">
       <Alert look="info" heading="Simulated card network">
-        The card network in this demo is a stand-in service (network/server.mjs). Every payment goes agent, then network, then the bank&apos;s
+        The card network in this demo is a stand-in service (network/server.mjs), including its agent registry and agent signatures. Every payment goes agent, then network, then the bank&apos;s
         decision at /api/bank/decide. No real money or real card scheme is involved.
       </Alert>
 
@@ -189,7 +212,7 @@ export default function DemoPage() {
           <ul className="space-y-1 pt-1 text-xs text-gray-600">
             {data?.agents.filter((a) => a.status === "ACTIVE").map((a) => (
               <li key={a.id} className="flex justify-between">
-                <span>{a.agentName ?? "Agent"}</span>
+                <span>{a.agentName ?? "Agent"}: {a.merchant || a.category}</span>
                 <span>{dollars(a.remainingCents)} left of {dollars(a.limitCents)}</span>
               </li>
             ))}

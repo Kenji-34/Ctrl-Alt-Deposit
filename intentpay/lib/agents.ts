@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { DEMO_CUSTOMER } from "@/lib/customer-limits";
 import { revokePolicy } from "@/lib/network-client";
 
-export type AgentRow = { id: string; customer_id: string; name: string; status: string; created_at: string };
+export type AgentRow = { id: string; customer_id: string; name: string; type: string | null; status: string; created_at: string; network_agent_id: string | null; network_verified: number };
 
 export function listAgents(customerId = DEMO_CUSTOMER): AgentRow[] {
   return db
@@ -16,16 +16,31 @@ export function getAgent(id: string): AgentRow | undefined {
   return db.prepare(`SELECT * FROM agents WHERE id = ?`).get(id) as AgentRow | undefined;
 }
 
-export function registerAgent(name: string, id?: string, customerId = DEMO_CUSTOMER): AgentRow {
+export const DEFAULT_AGENT_TYPE = "AI assistant";
+
+// An agent is an AI platform identity (ChatGPT, Gemini, Perplexity), not a spending purpose.
+// Purposes live on its mandates (policies).
+// Agent identity is established by the NETWORK, not the bank: the bank stores the network's agent id
+// and relies on the network's attestation (simulated here).
+export function registerAgent(
+  name: string,
+  id?: string,
+  type = DEFAULT_AGENT_TYPE,
+  network: { networkAgentId?: string; verified?: boolean } = {},
+  customerId = DEMO_CUSTOMER
+): AgentRow {
   const row: AgentRow = {
     id: id ?? "agent_" + randomUUID().slice(0, 8),
     customer_id: customerId,
     name: name.trim(),
+    type,
     status: "ACTIVE",
+    network_agent_id: network.networkAgentId ?? null,
+    network_verified: network.verified ? 1 : 0,
     created_at: new Date().toISOString(),
   };
-  db.prepare(`INSERT INTO agents (id, customer_id, name, status, created_at) VALUES (?, ?, ?, ?, ?)`).run(
-    row.id, row.customer_id, row.name, row.status, row.created_at
+  db.prepare(`INSERT INTO agents (id, customer_id, name, type, status, created_at, network_agent_id, network_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    row.id, row.customer_id, row.name, row.type, row.status, row.created_at, row.network_agent_id, row.network_verified
   );
   return row;
 }

@@ -25,9 +25,10 @@ type Draft = {
   limit: string; // dollars, as typed
   period: Period;
   prohibited: string;
+  amountType: "flexible" | "fixed";
 };
 
-const EMPTY: Draft = { merchant: "", category: "general", limit: "", period: "week", prohibited: DEFAULT_PROHIBITED };
+const EMPTY: Draft = { merchant: "", category: "general", limit: "", period: "week", prohibited: DEFAULT_PROHIBITED, amountType: "flexible" };
 
 export default function NewAgentCard() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -63,7 +64,12 @@ export default function NewAgentCard() {
   }, []);
 
   function set<K extends keyof Draft>(k: K, v: Draft[K]) {
-    setDraft((d) => ({ ...d, [k]: v }));
+    setDraft((d) => {
+      const next = { ...d, [k]: v };
+      // Subscriptions and flights have a set price, so they default to fixed.
+      if (k === "category") next.amountType = v === "subscriptions" || v === "travel" ? "fixed" : "flexible";
+      return next;
+    });
   }
 
   async function readRules() {
@@ -84,6 +90,7 @@ export default function NewAgentCard() {
         category: p.category || "general",
         limit: p.maxAmountCents > 0 ? String(p.maxAmountCents / 100) : "",
         period: p.period ?? "once",
+        amountType: p.amountType === "fixed" ? "fixed" : "flexible",
         prohibited: p.prohibitedItems?.length ? p.prohibitedItems.join(", ") : DEFAULT_PROHIBITED,
       });
       if (data.source === "fixture") setNotice("The AI reader is offline, so we filled in what we could from your sentence. Please check every rule.");
@@ -116,6 +123,7 @@ export default function NewAgentCard() {
         merchant: draft.merchant.trim(),
         category: draft.category,
         period: draft.period,
+        amountType: draft.amountType,
         prohibitedItems: draft.prohibited.split(",").map((s) => s.trim()).filter(Boolean),
         needsClarification: false,
         clarificationQuestion: "",
@@ -150,7 +158,15 @@ export default function NewAgentCard() {
     <Shell back="/agent" tab="Payments">
       {step === 1 && (
         <>
-          <h2 className="text-base font-semibold text-gray-900">What should your agent do?</h2>
+          <h2 className="text-base font-semibold text-gray-900">Which AI agent is this for?</h2>
+          {agents.length > 0 ? (
+            <Select value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="AI agent">
+              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          ) : (
+            <p className="text-sm text-gray-600">No agents registered yet. Add one on the Cards screen first.</p>
+          )}
+          <h2 className="pt-2 text-base font-semibold text-gray-900">What should it be allowed to do?</h2>
           <div className="grid grid-cols-2 gap-3">
             {GOALS.map((g) => (
               <button
@@ -188,15 +204,14 @@ export default function NewAgentCard() {
 
           <h2 className="pt-2 text-base font-semibold text-gray-900">Check the rules</h2>
           <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-            {agents.length > 0 && (
-              <Row label="Which agent is this for?">
-                <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </Select>
-              </Row>
-            )}
             <Row label="Who it can pay (optional)">
               <Input value={draft.merchant} onChange={(e) => set("merchant", e.target.value)} placeholder="e.g. Woolworths" />
+            </Row>
+            <Row label="Price type">
+              <Select value={draft.amountType} onChange={(e) => set("amountType", e.target.value as "flexible" | "fixed")}>
+                <option value="flexible">Flexible (can be partly approved, like groceries)</option>
+                <option value="fixed">Fixed price (all or nothing, like a subscription)</option>
+              </Select>
             </Row>
             <Row label="Type of spending">
               <Select value={draft.category} onChange={(e) => set("category", e.target.value)}>

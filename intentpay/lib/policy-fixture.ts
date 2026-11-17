@@ -28,6 +28,7 @@ export function parsePolicyFallback(prompt: string): Policy {
     merchant,
     category,
     period,
+    amountType: category === "subscriptions" || category === "travel" ? "fixed" : "flexible",
     prohibitedItems: [],
     needsClarification: cents === 0,
     clarificationQuestion: cents === 0 ? "How much can the agent spend?" : "",

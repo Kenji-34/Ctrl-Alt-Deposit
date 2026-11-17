@@ -31,31 +31,53 @@ The app works without it (rules can be typed in).
   re-seeds the customer and agents, so a scene can be re-recorded cleanly.
 - Tests: `npm test` (unit tests for the decision rules).
 
+## Model: customer, agents, mandates
+
+Following how the networks define it: an **agent is an AI platform identity** (ChatGPT, Gemini, Perplexity), not a spending
+purpose. Hierarchy: **customer -> agents -> mandates (policies)**. A purpose like "groceries" belongs to a mandate.
+Reasons and receipts name both: "ChatGPT's groceries mandate".
+
 ## Demo customer
 
-One customer, a **$300 per week overall cap** (change it on the Cards screen), and three agents:
+One customer, a **$300 per week overall cap** (editable on the Cards screen), three agents (type "AI assistant"):
 
-| Agent | Budget | Category |
-|---|---|---|
-| Grocery agent | $150 / week | groceries (no gift cards or alcohol) |
-| Flights agent | $200 / week | travel |
-| Subscriptions agent | $80 / month | subscriptions |
+| Agent | Mandate | Limit | Price type | Spent already (seeded) |
+|---|---|---|---|---|
+| ChatGPT | groceries | $150 / week | flexible | $80 |
+| ChatGPT | flights (travel) | $200 / week | fixed | $60 |
+| Gemini | groceries | $150 / week | flexible | $70 |
+| Gemini | subscriptions | $80 / month | fixed | $30 |
+| Perplexity | none yet | | | |
 
-Each is inside its own budget; together they could spend $430, more than the $300 cap.
+Both grocery mandates together are $300, and every mandate is inside its own budget, but the seeded history leaves only
+**$60** under the overall cap while Gemini's groceries mandate still has $80, so one purchase hits the cap first.
+**Reset demo** restores exactly this state.
 
-### Scene A: aggregate authority
-Run the four steps on `/demo`: Grocery $140 (approved), Flights $150 (approved), Subscriptions Netflix $40
-(**reduced to $10** by the overall cap), Spotify $20 (**declined**, overall cap reached). The reason text and
-"Limit applied" label say it was the overall cap, not the agent's own budget.
+**Flexible vs fixed:** a flexible purchase (groceries) over what is left is approved for the smaller amount. A fixed-price
+purchase (a subscription, a flight) is never part-paid: it is approved in full or declined. The flag lives on the mandate
+(`amountType`); a purchase can also mark itself fixed, which only makes the decision stricter.
+
+### Scene A: the overall cap wins
+Gemini groceries $75 at Woolworths is **reduced to $60** (Gemini's own mandate had $80 left; the overall cap is tighter).
+Gemini $10 at Coles is **declined** (cap reached), and so is ChatGPT's flight, because the cap covers every agent.
+
+### Scene E: fixed price vs flexible
+Netflix $55 against the $50 left in Gemini's subscriptions mandate is **declined, not part-paid**. Spotify $12 fits and is
+approved. Woolworths $90 (flexible) is **reduced** instead of declined.
+
+### Scene F: a spoofed agent
+Press **Reset demo** first. An attacker holds ChatGPT's card token and claims to be ChatGPT, but cannot sign as ChatGPT: the
+**network** declines it ("agent signature invalid", then "agent signature missing"), and the bank still records both attempts
+as network declines. The real ChatGPT, correctly signed, is approved.
 
 ### Scene C: cancel at the network vs revoke at the bank
-Press **Reset demo** first. Grocery purchase (approved) → "Cancel the instruction at the network only" → the
+Press **Reset demo** first. A Gemini groceries purchase (approved) → "Cancel the instruction at the network only" → the
 already-issued card **still works** (modelled on Visa's documented behaviour: cancelling an instruction does not
 invalidate credentials already issued) → "Revoke at the bank" → the next payment is **declined by the bank** immediately,
 before the network has been told.
 
 ### Scene D: AI consistency check
-Press **Reset demo** first. Four purchases at the Grocery agent with basket details: plain groceries (passes), a mixed
+Press **Reset demo** first. Four purchases under Gemini's groceries mandate with basket details: plain groceries (passes), a mixed
 basket (**asks you**), a TV in a grocery basket (**blocked**), and a messy descriptor "WOOLIES*SYD" (the rules ask you
 because the merchant is unknown; the AI check adds a hint that it looks like Woolworths, but cannot approve it).
 
@@ -67,11 +89,26 @@ Customer approval only resolves the unknown-merchant question. Budget, caps, pro
 ## What changed on this branch
 
 - Overall customer cap: `decide()` takes the tighter of the agent budget and the cap, records which limit applied.
-- Agent registry (`agents` table), mandates belong to agents, **Revoke agent** stops all its cards at the bank and the network.
+- Agent registry (`agents` table, with a type): mandates belong to agents. **Revoke agent** revokes all its mandates and tokens at the bank and the network. The Cards screen groups mandates under their agent, and the new-card flow asks which agent first.
 - Pending approvals for `ask_customer`, with approve/reject and receipts.
 - `request_id` idempotency on `/api/bank/decide`; the decision runs in an IMMEDIATE transaction so concurrent payments cannot jointly breach a cap.
 - Receipts store the `rule` code and `limited_by`.
 - Database changes are additive (new tables and columns). If something misbehaves, delete `data/intentpay.db`.
+
+## Agent identity (simulated)
+
+Agent identity is established by the **network**, not the bank:
+- The network has an agent registry (`GET /agents`: id, name, type, simulated public key; secrets are never listed).
+- Cards screen: you pick an agent **from that registry** (no free-text names) and it shows a **Verified by network (simulated)** badge.
+  The bank's `agents` row stores the network's agent id (`network_agent_id`) and relies on the network's attestation.
+- Token provisioning **fails** if the agent id is not in the network registry.
+- On each payment the agent signs the request (HMAC-SHA256 over token, agent id, merchant, category, amount and timestamp,
+  with the agent's secret). The network declines a missing, invalid, stale or mismatched signature, and the bank still receipts the
+  attempt as a network decline (rule `network_agent_verification`).
+- This is a **simulation**. Real systems use cryptographic agent identity (for example Visa's agent signatures or Mastercard's
+  registered agent tokens), with asymmetric keys verified against a public key. Here an HMAC secret stands in, and the demo's
+  `/demo/agent-sign` endpoint plays the agent's own runtime. The bank never holds agent secrets.
+- The registry also lists Claude and Microsoft Copilot so there is something to register from the picker.
 
 ## AI check (P1)
 

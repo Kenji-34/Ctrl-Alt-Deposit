@@ -132,6 +132,9 @@ db.exec(`
   )
 `);
 
+ensureColumn("agents", "type", "TEXT"); // e.g. "AI assistant"
+ensureColumn("agents", "network_agent_id", "TEXT"); // identity as established by the (simulated) network
+ensureColumn("agents", "network_verified", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("pending_approvals", "receipt_id", "TEXT");
 ensureColumn("pending_approvals", "ai_note", "TEXT");
 

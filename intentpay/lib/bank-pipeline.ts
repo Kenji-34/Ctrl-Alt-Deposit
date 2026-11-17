@@ -10,6 +10,7 @@ import { recordReceipt } from "@/lib/bank-receipts";
 import { windowStart } from "@/lib/budget";
 import { customerCapInput } from "@/lib/customer-limits";
 import { randomUUID } from "node:crypto";
+import { getAgent } from "@/lib/agents";
 
 export type DecisionRequest = {
   policyId: string;
@@ -21,6 +22,7 @@ export type DecisionRequest = {
   description?: string;
   customerConfirmed?: boolean;
   intentRef?: string;
+  fixedAmount?: boolean;
   network?: Record<string, unknown>; // simulated network fields (mandate, cryptogram, ...)
   ai?: AiNote | null; // result of the AI check, run beforehand (undefined = not run)
 };
@@ -30,8 +32,8 @@ type PolicyRow = { policy_json: string; status: string };
 // Read-only: what do the deterministic rules say right now? (Used to decide whether the AI check is worth running.)
 export function computeDecision(r: DecisionRequest): { decision: Decision; policy: PolicyLike | null; originalPrompt: string } {
   const row = db
-    .prepare(`SELECT policy_json, status, original_prompt FROM policies WHERE id = ?`)
-    .get(r.policyId) as (PolicyRow & { original_prompt: string }) | undefined;
+    .prepare(`SELECT policy_json, status, original_prompt, agent_id FROM policies WHERE id = ?`)
+    .get(r.policyId) as (PolicyRow & { original_prompt: string; agent_id: string | null }) | undefined;
 
   let policy = null;
   if (row && row.status === "ACTIVE") {
@@ -47,6 +49,8 @@ export function computeDecision(r: DecisionRequest): { decision: Decision; polic
     )
     .get(r.policyId, windowStart(policy?.period ?? "once")) as { total_spent: number };
 
+  const agent = row?.agent_id ? getAgent(row.agent_id) : undefined;
+
   const decision = decide({
     policy,
     spentCents: spent.total_spent,
@@ -57,6 +61,11 @@ export function computeDecision(r: DecisionRequest): { decision: Decision; polic
     description: r.description,
     customerCap: customerCapInput(),
     customerConfirmed: r.customerConfirmed,
+    fixedAmount: r.fixedAmount,
+    labels: {
+      agent: agent?.name,
+      mandate: policy ? policy.merchant || policy.category : undefined,
+    },
   });
   return { decision, policy, originalPrompt: row?.original_prompt ?? "" };
 }
