@@ -37,7 +37,7 @@ export function MandateCard({ mandate, onChanged }: { mandate: Agent; onChanged:
             {mandate.amountType === "fixed" ? " · fixed price" : ""}
           </p>
         </div>
-        <Badge color={active ? "success" : "muted"}>{active ? "Active" : "Revoked"}</Badge>
+        {!active && <Badge color="muted">Revoked</Badge>}
       </div>
 
       <div className="space-y-1">

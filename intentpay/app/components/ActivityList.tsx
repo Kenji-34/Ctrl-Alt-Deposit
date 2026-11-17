@@ -43,7 +43,7 @@ export function ActivityList({ items, sideOf }: { items: Activity[]; sideOf?: (p
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-gray-900">
                       {a.merchant ?? "Unknown merchant"}
-                      {sideOf?.(a.policyId) && <span className="ml-2 align-middle"><Badge color={sideOf(a.policyId) === "Business" ? "muted" : "info"}>{sideOf(a.policyId)}</Badge></span>}
+                      {sideOf?.(a.policyId) && <span className="ml-1 text-xs font-normal text-gray-500">· {sideOf(a.policyId)}</span>}
                     </span>
                     <span className="text-sm font-semibold text-gray-900">{dollars(shown)}</span>
                   </div>

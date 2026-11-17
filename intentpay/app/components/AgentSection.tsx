@@ -29,19 +29,18 @@ export function AgentSection({
     <Card data-demo={`agent-${agent.name}`} className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="flex items-center gap-2 text-base font-semibold text-gray-900">
-            {agent.name}
-            {sideOf(agent.name) && <span data-demo="side-chip"><Badge color={sideOf(agent.name) === "Business" ? "muted" : "info"}>{sideOf(agent.name)}</Badge></span>}
+          <p className="text-base font-semibold text-gray-900">{agent.name}</p>
+          <p className="text-xs text-gray-500">
+            {agent.type ?? "AI assistant"}
+            {sideOf(agent.name) && <span data-demo="side-chip"> · {sideOf(agent.name)}</span>}
           </p>
-          <p className="text-xs text-gray-500">{agent.type ?? "AI assistant"}</p>
           {agent.verified && (
-            <p className="mt-1 text-xs font-medium text-gray-700">
-              <span data-demo="verified-badge"><Badge color="info">Verified by network</Badge></span>{" "}
-              <span className="font-normal text-gray-500">simulated</span>
+            <p data-demo="verified-badge" className="mt-1 text-xs font-medium text-gray-700">
+              ✓ Verified by network <span className="font-normal text-gray-500">(simulated)</span>
             </p>
           )}
         </div>
-        <Badge color={active ? "success" : "muted"}>{active ? "Active" : "Revoked"}</Badge>
+        {!active && <Badge color="muted">Revoked</Badge>}
       </div>
 
       {mandates.length === 0 && <p className="text-sm text-gray-600">No mandates yet. It cannot spend anything.</p>}
