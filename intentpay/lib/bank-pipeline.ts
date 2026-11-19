@@ -8,7 +8,7 @@ import { decide, applyAiCheck, type AiNote, type Decision, type PolicyLike } fro
 import { lookupMerchant } from "@/lib/merchant-lookup";
 import { recordReceipt } from "@/lib/bank-receipts";
 import { windowStart } from "@/lib/budget";
-import { customerCapInput } from "@/lib/customer-limits";
+import { customerCapInput, customerOfPolicy } from "@/lib/customer-limits";
 import { randomUUID } from "node:crypto";
 import { getAgent } from "@/lib/agents";
 
@@ -59,7 +59,7 @@ export function computeDecision(r: DecisionRequest): { decision: Decision; polic
     merchant: { name: r.merchant.name, category: r.merchant.category },
     merchantStatus: lookupMerchant(r.merchant.name, r.merchant.abn),
     description: r.description,
-    customerCap: customerCapInput(),
+    customerCap: customerCapInput(customerOfPolicy(r.policyId)), // the cap of the customer who owns this agent
     customerConfirmed: r.customerConfirmed,
     fixedAmount: r.fixedAmount,
     labels: {

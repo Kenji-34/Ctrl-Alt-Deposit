@@ -6,19 +6,23 @@ import { getAgentToken } from "@/lib/agent-tokens";
 import { listReceipts } from "@/lib/bank-receipts";
 import { listAgents } from "@/lib/agents";
 import { ensureSeeded } from "@/lib/demo";
-import { getCustomerLimit, customerSpentCents } from "@/lib/customer-limits";
+import { getCustomerLimit, customerSpentCents, customerFromUrl, DEMO_CUSTOMER } from "@/lib/customer-limits";
 
 
 type Row = { agent_id: string | null; id: string; original_prompt: string; policy_json: string; status: string; created_at: string };
 
-export async function GET() {
+// Optional ?customer=<id> picks which customer's agents to show. Omitted = the original demo customer (unchanged).
+export async function GET(request: Request) {
+  const customerId = customerFromUrl(request.url); // outside the try: reading the request must not be caught by it
   try {
     ensureSeeded();
-    const registry = listAgents();
+    const registry = listAgents(customerId);
     const nameOf = new Map(registry.map((a) => [a.id, a.name]));
-    const rows = db
+    const rows = (db
       .prepare(`SELECT id, agent_id, original_prompt, policy_json, status, created_at FROM policies ORDER BY created_at DESC`)
-      .all() as Row[];
+      .all() as Row[])
+      .filter((r) => (r.agent_id ? nameOf.has(r.agent_id) : customerId === DEMO_CUSTOMER));
+    const policyIds = new Set(rows.map((r) => r.id));
 
     const agents = rows.flatMap((r) => {
       const parsed = PolicySchema.safeParse(JSON.parse(r.policy_json));
@@ -55,6 +59,7 @@ export async function GET() {
 
     const activity = (listReceipts(50) as any[])
       .filter((r) => ["approve", "approve_narrower", "ask_customer", "decline"].includes(r.outcome))
+      .filter((r) => (r.policy_id ? policyIds.has(r.policy_id) : customerId === DEMO_CUSTOMER))
       .map((r) => ({
         id: r.id,
         policyId: r.policy_id,
@@ -71,8 +76,8 @@ export async function GET() {
         createdAt: r.created_at,
       }));
 
-    const lim = getCustomerLimit();
-    const overallSpent = customerSpentCents(lim.period);
+    const lim = getCustomerLimit(customerId);
+    const overallSpent = customerSpentCents(lim.period, customerId);
     const overall = {
       limitCents: lim.limitCents,
       period: lim.period,
@@ -84,7 +89,7 @@ export async function GET() {
       db
         .prepare(`SELECT * FROM pending_approvals WHERE status = 'PENDING' ORDER BY created_at DESC`)
         .all() as any[]
-    ).map((p) => ({
+    ).filter((p) => policyIds.has(p.policy_id)).map((p) => ({
       id: p.id,
       policyId: p.policy_id,
       agentName: p.agent_id ? nameOf.get(p.agent_id) ?? null : null,

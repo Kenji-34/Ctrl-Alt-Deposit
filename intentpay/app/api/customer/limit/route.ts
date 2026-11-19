@@ -1,8 +1,10 @@
-import { getCustomerLimit, setCustomerLimit, customerSpentCents } from "@/lib/customer-limits";
+import { getCustomerLimit, setCustomerLimit, customerSpentCents, customerFromUrl } from "@/lib/customer-limits";
 
-export async function GET() {
-  const l = getCustomerLimit();
-  const spent = customerSpentCents(l.period);
+// Optional ?customer=<id>; omitted = the original demo customer.
+export async function GET(request: Request) {
+  const customerId = customerFromUrl(request.url);
+  const l = getCustomerLimit(customerId);
+  const spent = customerSpentCents(l.period, customerId);
   return Response.json({
     limitCents: l.limitCents,
     period: l.period,
@@ -12,6 +14,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const customerId = customerFromUrl(request.url);
   const b = await request.json().catch(() => ({}));
   const cents = Math.round(Number(b.limit) * 100);
   const period = b.period;
@@ -21,6 +24,6 @@ export async function PUT(request: Request) {
   if (!["week", "month", "once"].includes(period)) {
     return Response.json({ error: "Period must be week, month or once." }, { status: 400 });
   }
-  setCustomerLimit(cents, period);
+  setCustomerLimit(cents, period, customerId);
   return Response.json({ ok: true });
 }
