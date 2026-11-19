@@ -4,12 +4,14 @@
 //   "lookalike" - name imitates a known merchant but is not it
 //   "unknown"   - not in the database (new business)
 import type { MerchantStatus } from "./bank-decide";
+import { BUSINESS_MERCHANTS } from "./business-data.ts"; // invented suppliers for the simulated Harbour Print Co demo
 
 const KNOWN = [
   "coles", "woolworths", "aldi", "iga",
   "qantas", "jetstar", "virgin australia", "netflix", "spotify",
   "officeworks", // business office supplies
   "cloud hosting invoice", "domain renewal", // business supplier invoices
+  ...BUSINESS_MERCHANTS, // simulated suppliers and payees of the business profile
 ];
 
 function distance(a: string, b: string): number {

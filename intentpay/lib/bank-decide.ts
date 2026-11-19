@@ -21,6 +21,7 @@ export type Rule =
   | "merchant_mismatch"
   | "category_mismatch"
   | "prohibited_item"
+  | "over_per_order_limit"
   | "agent_budget_exhausted"
   | "overall_cap_exhausted"
   | "unknown_merchant"
@@ -45,6 +46,7 @@ export type PolicyLike = {
   prohibitedItems: string[];
   needsClarification: boolean;
   amountType?: "flexible" | "fixed"; // fixed-price purchases are never partly approved
+  perOrderMaxCents?: number; // optional ceiling for ONE order (e.g. a procurement agent: up to $300 per order)
 };
 
 // The customer-wide cap across ALL of the customer's agents.
@@ -154,6 +156,16 @@ export function decide(i: DecideInput): Decision {
       outcome: "decline",
       rule: "prohibited_item",
       reason: `The purchase mentions '${blocked}', which the customer prohibited.`,
+    };
+  }
+
+  // Per-order ceiling (optional). An order above it is declined, never reduced: a partly-paid order makes no sense.
+  // It sits before the budget and the unknown-merchant question, so a confirmation can never lift it.
+  if (policy.perOrderMaxCents !== undefined && i.amountCents > policy.perOrderMaxCents) {
+    return {
+      outcome: "decline",
+      rule: "over_per_order_limit",
+      reason: `This order of ${dollars(i.amountCents)} is over the ${dollars(policy.perOrderMaxCents)} per-order limit in ${who ?? "the customer's policy"}. Orders above the limit are declined, not reduced.`,
     };
   }
 
