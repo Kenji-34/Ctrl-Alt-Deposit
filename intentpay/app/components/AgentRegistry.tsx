@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Select } from "@/app/components/ui";
+import { customerQuery, useProfile } from "@/lib/profile";
 
 type Known = { id: string; name: string; type: string };
 
@@ -11,6 +12,7 @@ export function AgentRegistry({ onChanged }: { onChanged: () => void }) {
   const [options, setOptions] = useState<Known[]>([]);
   const [pick, setPick] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const profile = useProfile();
 
   const load = useCallback(async () => {
     try {
@@ -30,7 +32,7 @@ export function AgentRegistry({ onChanged }: { onChanged: () => void }) {
 
   async function add() {
     setError(null);
-    const res = await fetch("/api/agents", {
+    const res = await fetch("/api/agents" + customerQuery(profile), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ networkAgentId: pick }),

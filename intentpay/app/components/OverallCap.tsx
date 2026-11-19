@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Alert, Button, Card, Input, ProgressBar, Select } from "@/app/components/ui";
 import { dollars } from "@/lib/format";
 import type { Overall, Period } from "./types";
+import { customerQuery, useProfile } from "@/lib/profile";
 
 const PERIOD_TEXT: Record<Period, string> = { week: "per week", month: "per month", once: "in total" };
 
@@ -14,6 +15,7 @@ export function OverallCap({ overall, onChanged }: { overall: Overall; onChanged
   const [period, setPeriod] = useState<Period>(overall.period);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const profile = useProfile();
 
   const used = overall.limitCents > 0 ? (overall.spentCents / overall.limitCents) * 100 : 0;
 
@@ -21,7 +23,7 @@ export function OverallCap({ overall, onChanged }: { overall: Overall; onChanged
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/customer/limit", {
+      const res = await fetch("/api/customer/limit" + customerQuery(profile), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: Number(limit), period }),

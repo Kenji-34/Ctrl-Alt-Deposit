@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Shell } from "@/app/components/Shell";
 import { Alert, Badge, Button, Card, ProgressBar, SectionTitle } from "@/app/components/ui";
 import { PendingApprovals } from "@/app/components/PendingApprovals";
 import { useSummary } from "@/app/components/useSummary";
+import { ProfileToggle } from "@/app/components/ProfileToggle";
+import { useProfile } from "@/lib/profile";
 import { dollars } from "@/lib/format";
 
 type Step = {
@@ -15,7 +18,8 @@ type Step = {
   lineItems?: string[]; // basket details, registered with the simulated network and fetched by the bank by reference
 };
 
-const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
+// profile: which demo profile a scene belongs to. Scenes without it are the personal customer's (A to F).
+const SCENES: { id: string; title: string; blurb: string; steps: Step[]; profile?: "business" }[] = [
   {
     id: "A",
     title: "Scene A: the overall cap wins",
@@ -85,6 +89,60 @@ const SCENES: { id: string; title: string; blurb: string; steps: Step[] }[] = [
       { agent: "ChatGPT", merchant: "Woolworths", category: "groceries", amount: 30, note: "The real ChatGPT, correctly signed: approved" },
     ],
   },
+  // ---- Business profile: Harbour Print Co, an invented small business. Every supplier and figure is simulated. ----
+  {
+    id: "G1",
+    profile: "business",
+    title: "Scene G1: an approved supplier, within the mandate",
+    blurb:
+      "The Procurement agent may order print and office supplies, fixed price, up to $300 per order. Northside Paper Supply is a supplier the bank already knows. The order is inside the per-order limit, the agent's weekly budget and the business's $2,000 weekly cap. Reset first.",
+    steps: [
+      { agent: "Procurement agent", merchant: "Northside Paper Supply", category: "print supplies", amount: 120, fixedAmount: true, note: "Known supplier, fixed price, inside every limit" },
+    ],
+  },
+  {
+    id: "G2",
+    profile: "business",
+    title: "Scene G2: a brand-new supplier asks the owner",
+    blurb:
+      "The Procurement agent tries a supplier the bank has never seen. The bank does not guess and does not pay on its own: the owner gets a request to confirm before any money moves. Reset first.",
+    steps: [
+      { agent: "Procurement agent", merchant: "Fernlea Paper Merchants", category: "print supplies", amount: 80, fixedAmount: true, note: "Never-seen supplier: waits for the owner" },
+    ],
+  },
+  {
+    id: "G3",
+    profile: "business",
+    title: "Scene G3: a lookalike supplier invoice is blocked",
+    blurb:
+      "The Bill-pay agent only pays known payees, in full. A genuine invoice from Calder Packaging is paid. The same invoice from \"Calder Packaglng\" (one character different) imitates a known payee, so the bank declines it, and even the owner's confirmation could not rescue it. Reset first.",
+    steps: [
+      { agent: "Bill-pay agent", merchant: "Calder Packaging", category: "supplier invoices", amount: 220, fixedAmount: true, note: "Genuine invoice from a known payee: paid in full" },
+      { agent: "Bill-pay agent", merchant: "Calder Packaglng", category: "supplier invoices", amount: 220, fixedAmount: true, note: "Same invoice, name one character off: blocked" },
+    ],
+  },
+  {
+    id: "G4",
+    profile: "business",
+    title: "Scene G4: the business cap is tighter than the agent's budget",
+    blurb:
+      "This week the three agents have spent $1,700 of the business's $2,000 cap, so $300 is left. The Marketing agent still has $350 of its own $500 budget, but asks for $400. Ad spend is flexible, so the bank approves what the cap leaves instead of refusing. Reset first.",
+    steps: [
+      { agent: "Marketing agent", merchant: "Brightline Ads", category: "marketing", amount: 400, note: "Asks for more than the cap leaves: reduced" },
+    ],
+  },
+  {
+    id: "G5",
+    profile: "business",
+    title: "Scene G5: the owner revokes the Marketing agent",
+    blurb:
+      "A bank-side revoke stops the agent's mandate at once. The card it was already issued still exists, but the bank refuses every payment on it, and the refusal is recorded on a receipt. Reset first.",
+    steps: [
+      { agent: "Marketing agent", merchant: "Brightline Ads", category: "marketing", amount: 40, note: "Normal ad spend: approved" },
+      { kind: "bankrevoke", agent: "Marketing agent", category: "marketing", merchant: "Bank", amount: 0, note: "The owner revokes the Marketing agent at the bank" },
+      { agent: "Marketing agent", merchant: "Brightline Ads", category: "marketing", amount: 40, note: "Already-issued card: blocked, with a receipt" },
+    ],
+  },
 ];
 
 type Result = {
@@ -94,6 +152,7 @@ type Result = {
   reason: string;
   approved?: number;
   declinedBy?: string;
+  receiptId?: string;
   limitedBy?: string;
   ai?: { reason: string; source?: string };
   error?: boolean;
@@ -111,7 +170,8 @@ export default function DemoPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [next, setNext] = useState<Record<string, number>>({ A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 });
+  const [next, setNext] = useState<Record<string, number>>({});
+  const profile = useProfile();
 
   async function runStep(sceneId: string, step: Step) {
     const policy = data?.agents.find((a) => a.agentName === step.agent && a.category === step.category && (a.status === "ACTIVE" || step.kind === undefined));
@@ -151,7 +211,7 @@ export default function DemoPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Purchase failed");
       setResults((r) => [
-        { key, step, outcome: d.outcome, reason: d.reason, approved: d.approved_amount, declinedBy: d.declined_by, limitedBy: d.limited_by, ai: d.ai },
+        { key, step, outcome: d.outcome, reason: d.reason, approved: d.approved_amount, declinedBy: d.declined_by, receiptId: d.receipt_id, limitedBy: d.limited_by, ai: d.ai },
         ...r,
       ]);
     } catch (e) {
@@ -177,10 +237,10 @@ export default function DemoPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Reset failed");
       setResults([]);
-      setNext({ A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 });
+      setNext({});
       setNotice(
         d.networkReset
-          ? "Demo reset. ChatGPT, Gemini and Perplexity re-created with their mandates, $240 already spent this week and a $300 per week overall cap."
+          ? "Demo reset. Both profiles are re-created. Personal: ChatGPT, Gemini and Perplexity, $240 already spent this week and a $300 per week overall cap. Business (Harbour Print Co, simulated): the Procurement, Marketing and Bill-pay agents, $1,700 spent this week and a $2,000 per week overall cap."
           : "Bank data reset, but the simulated card network is not running. Start it (node server.mjs in /network), then press Reset demo again."
       );
     } catch (e) {
@@ -195,6 +255,7 @@ export default function DemoPage() {
 
   return (
     <Shell back="/agent" tab="Cards">
+      <ProfileToggle />
       <Alert look="info" heading="Simulated card network">
         The card network in this demo is a stand-in service (network/server.mjs), including its agent registry and agent signatures. Every payment goes agent, then network, then the bank&apos;s
         decision at /api/bank/decide. No real money or real card scheme is involved.
@@ -222,7 +283,7 @@ export default function DemoPage() {
 
       <PendingApprovals items={data?.pending ?? []} onChanged={reload} />
 
-      {SCENES.map((s) => {
+      {SCENES.filter((s) => (s.profile ?? "personal") === profile).map((s) => {
         const i = next[s.id] ?? 0;
         const done = i >= s.steps.length;
         const step = s.steps[i];
@@ -267,6 +328,7 @@ export default function DemoPage() {
                 {b ? <Badge color={b.color}>{b.text}</Badge> : r.step.kind && !r.error ? <Badge color="info">Done</Badge> : <Badge color="danger">Error</Badge>}
                 <p className="text-sm text-gray-700">{r.reason}</p>
                 {r.declinedBy && <p className="text-xs text-gray-500">Declined by the {r.declinedBy}</p>}
+                {r.receiptId && <Link href={`/audit/${r.receiptId}`} className="text-xs font-medium text-text-primary underline" data-demo="view-receipt">View receipt</Link>}
                 {r.ai && <p className="text-xs text-gray-600"><span className="font-semibold">AI check:</span> {r.ai.reason}{r.ai.source === "fixture" ? " (demo fixture, no Gemini key)" : ""}</p>}
                 {r.limitedBy && (
                   <p className="text-xs font-medium text-gray-500">

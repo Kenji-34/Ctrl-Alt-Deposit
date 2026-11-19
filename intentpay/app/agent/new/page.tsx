@@ -7,6 +7,7 @@ import { Shell } from "@/app/components/Shell";
 import { periodLabel } from "@/lib/budget";
 import { dollars, shortDate } from "@/lib/format";
 import type { Period } from "@/app/components/types";
+import { customerQuery, useProfile } from "@/lib/profile";
 
 const GOALS = [
   { title: "Weekly groceries", text: "Buy groceries at Woolworths, up to $50 a week" },
@@ -52,16 +53,17 @@ export default function NewAgentCard() {
   // Which registered agent this card is for.
   const [agents, setAgents] = useState<{ id: string; name: string; status: string }[]>([]);
   const [agentId, setAgentId] = useState("");
+  const profile = useProfile();
   useEffect(() => {
-    fetch("/api/agent/summary")
+    fetch("/api/agent/summary" + customerQuery(profile))
       .then((r) => r.json())
       .then((d) => {
         const list = (d.registry ?? []).filter((a: { status: string }) => a.status === "ACTIVE");
         setAgents(list);
-        if (list.length > 0) setAgentId((cur) => cur || list[0].id);
+        setAgentId((cur) => (list.some((a: { id: string }) => a.id === cur) ? cur : list[0]?.id ?? ""));
       })
       .catch(() => {});
-  }, []);
+  }, [profile]);
 
   function set<K extends keyof Draft>(k: K, v: Draft[K]) {
     setDraft((d) => {

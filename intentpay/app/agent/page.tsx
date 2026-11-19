@@ -11,6 +11,7 @@ import { Alert, Button, Card, SectionTitle } from "@/app/components/ui";
 import { useSummary } from "@/app/components/useSummary";
 import { dollars } from "@/lib/format";
 import { sideOf } from "@/lib/sides";
+import { ProfileToggle } from "@/app/components/ProfileToggle";
 
 export default function AgentPage() {
   const { data, error, reload } = useSummary();
@@ -19,6 +20,7 @@ export default function AgentPage() {
 
   return (
     <Shell back="/" tab="Cards">
+      <ProfileToggle />
       {error && <Alert look="danger">Could not load your agent cards.</Alert>}
 
       <Card data-demo="service-card">
