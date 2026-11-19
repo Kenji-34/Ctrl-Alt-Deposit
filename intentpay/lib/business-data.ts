@@ -22,7 +22,7 @@ export type BusinessAgent = { id: string; name: string; mandates: BusinessMandat
 
 export const BUSINESS_AGENTS: BusinessAgent[] = [
   {
-    id: "agent_procurement",
+    id: "agent_procurementagent",
     name: "Procurement agent",
     mandates: [
       {
@@ -34,7 +34,7 @@ export const BUSINESS_AGENTS: BusinessAgent[] = [
     ],
   },
   {
-    id: "agent_marketing",
+    id: "agent_marketingagent",
     name: "Marketing agent",
     mandates: [
       {
@@ -46,7 +46,7 @@ export const BUSINESS_AGENTS: BusinessAgent[] = [
     ],
   },
   {
-    id: "agent_billpay",
+    id: "agent_billpayagent",
     name: "Bill-pay agent",
     mandates: [
       {

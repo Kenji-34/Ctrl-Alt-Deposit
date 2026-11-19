@@ -13,9 +13,9 @@ const asPolicy = (m: BusinessMandate): PolicyLike => ({
   needsClarification: false, amountType: m.amountType, perOrderMaxCents: m.perOrderMaxCents,
 });
 
-const procurement = mandateOf("agent_procurement");
-const marketing = mandateOf("agent_marketing");
-const billpay = mandateOf("agent_billpay");
+const procurement = mandateOf("agent_procurementagent");
+const marketing = mandateOf("agent_marketingagent");
+const billpay = mandateOf("agent_billpayagent");
 const allSpent = [procurement, marketing, billpay].reduce((s, m) => s + seededSpend(m), 0);
 const cap = (spentCents = allSpent) => ({ limitCents: BUSINESS_CAP_CENTS, spentCents, periodLabel: "per week" });
 

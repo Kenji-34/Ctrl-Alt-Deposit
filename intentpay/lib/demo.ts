@@ -12,13 +12,15 @@
 import db from "@/lib/db";
 import { randomUUID } from "node:crypto";
 import { registerAgent } from "@/lib/agents";
-import { setCustomerLimit, DEFAULT_LIMIT_CENTS, DEFAULT_PERIOD } from "@/lib/customer-limits";
+import { setCustomerLimit, DEFAULT_LIMIT_CENTS, DEFAULT_PERIOD, DEMO_CUSTOMER } from "@/lib/customer-limits";
+import { BUSINESS_AGENTS, BUSINESS_CAP_CENTS, BUSINESS_CUSTOMER, BUSINESS_PERIOD } from "@/lib/business-data";
 import { recordReceipt } from "@/lib/bank-receipts";
 import { activatePolicy, resetNetwork } from "@/lib/network-client";
 
 type Mandate = {
   prompt: string;
   maxAmountCents: number;
+  perOrderMaxCents?: number;
   category: string;
   period: "week" | "month";
   amountType: "flexible" | "fixed";
@@ -66,18 +68,27 @@ const SEED: { id: string; name: string; mandates: Mandate[] }[] = [
   { id: "agent_perplexity", name: "Perplexity", mandates: [] }, // registered, no mandates yet
 ];
 
+// Two customers are seeded side by side: the personal demo customer above, and "Harbour Print Co"
+// (lib/business-data.ts, all simulated). Each has its own agents and its own overall cap.
 export function seedDemo() {
-  setCustomerLimit(DEFAULT_LIMIT_CENTS, DEFAULT_PERIOD);
+  setCustomerLimit(DEFAULT_LIMIT_CENTS, DEFAULT_PERIOD, DEMO_CUSTOMER);
+  seedAgents(SEED, DEMO_CUSTOMER);
+  setCustomerLimit(BUSINESS_CAP_CENTS, BUSINESS_PERIOD, BUSINESS_CUSTOMER);
+  seedAgents(BUSINESS_AGENTS, BUSINESS_CUSTOMER);
+}
+
+function seedAgents(list: { id: string; name: string; mandates: Mandate[] }[], customerId: string) {
   const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
-  for (const a of SEED) {
+  for (const a of list) {
     // Seeded agents mirror the network's registry (the ids match), so they start verified.
-    registerAgent(a.name, a.id, "AI assistant", { networkAgentId: a.id, verified: true });
+    registerAgent(a.name, a.id, "AI assistant", { networkAgentId: a.id, verified: true }, customerId);
     for (const m of a.mandates) {
       const id = randomUUID();
       const policy = {
         maxAmountCents: m.maxAmountCents, currency: "AUD", merchant: "", category: m.category, period: m.period,
         amountType: m.amountType, prohibitedItems: m.prohibitedItems, needsClarification: false, clarificationQuestion: "",
+        ...(m.perOrderMaxCents !== undefined ? { perOrderMaxCents: m.perOrderMaxCents } : {}),
       };
       db.prepare(`
         INSERT INTO policies (id, original_prompt, policy_json, status, created_at, agent_id)

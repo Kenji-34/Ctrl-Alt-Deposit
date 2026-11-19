@@ -13,7 +13,8 @@ const log = []; // newest first
 // (e.g. Visa's agent signatures, Mastercard's registered agent tokens) and the bank relies on that attestation.
 // Here: a small registry of known agents, each with a simulated key. A real scheme would use asymmetric keys and
 // verify with the public key; this simulation uses an HMAC secret held only by the agent and the network.
-const AGENTS = ["ChatGPT", "Gemini", "Perplexity", "Claude", "Microsoft Copilot"].map((name) => {
+// The last three are the simulated business agents of the "Harbour Print Co" demo profile.
+const AGENTS = ["ChatGPT", "Gemini", "Perplexity", "Claude", "Microsoft Copilot", "Procurement agent", "Marketing agent", "Bill-pay agent"].map((name) => {
   const id = "agent_" + name.toLowerCase().replace(/[^a-z]/g, "").replace("microsoftcopilot", "copilot");
   const secret = createHash("sha256").update("simulated-agent-secret:" + id).digest("hex");
   return { id, name, type: "AI assistant", secret, public_key: "pk_sim_" + createHash("sha256").update(secret).digest("hex").slice(0, 24) };
