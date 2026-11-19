@@ -93,7 +93,7 @@ export default function NewAgentCard() {
         amountType: p.amountType === "fixed" ? "fixed" : "flexible",
         prohibited: p.prohibitedItems?.length ? p.prohibitedItems.join(", ") : DEFAULT_PROHIBITED,
       });
-      if (data.source === "fixture") setNotice("The AI reader is offline, so we filled in what we could from your sentence. Please check every rule.");
+      if (data.source === "fixture") setNotice("Filled in by the built-in reader (no AI key set). Please check every rule.");
       setQuestion(p.needsClarification ? p.clarificationQuestion || "How much can the agent spend?" : "");
     } catch {
       setNotice("We couldn't read that automatically. Please fill in the rules below.");
@@ -201,7 +201,7 @@ export default function NewAgentCard() {
             </Button>
           </div>
 
-          {notice && <Alert look="warning" mode="box">{notice}</Alert>}
+          {notice && <Alert look="info" mode="box">{notice}</Alert>}
           {question && <Alert look="warning" mode="box">{question}</Alert>}
 
           <h2 className="pt-2 text-base font-semibold text-gray-900">Check the rules</h2>

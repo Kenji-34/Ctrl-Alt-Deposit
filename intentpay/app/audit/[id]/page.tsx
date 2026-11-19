@@ -1,7 +1,7 @@
 "use client";
 
 import { sideOf } from "@/lib/sides";
-import { use, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import { Shell } from "@/app/components/Shell";
 import { Alert, Badge, Card, SectionTitle } from "@/app/components/ui";
 import { dollars } from "@/lib/format";
@@ -20,7 +20,16 @@ const COLOR: Record<string, "success" | "warning" | "danger" | "info"> = {
   approve: "success", approve_narrower: "info", ask_customer: "warning", decline: "danger",
 };
 
-export default function AuditDetail({ params }: { params: Promise<{ id: string }> }) {
+// With Cache Components the route params must be read inside a Suspense boundary.
+export default function AuditPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={<Shell back="/agent" tab="Cards"><p className="text-sm text-gray-600">Loading…</p></Shell>}>
+      <AuditDetail params={params} />
+    </Suspense>
+  );
+}
+
+function AuditDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [data, setData] = useState<Audit | null>(null);
   const [error, setError] = useState(false);
