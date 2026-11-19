@@ -1,5 +1,5 @@
 // Autoplay demo: drives the REAL intentpay UI with Playwright and (optionally) records a video.
-// Usage:  node src/run.mjs [--record] [--no-sandbox (only for root/CI containers)] [--scene A] [--headless] [--with-e] [--channel chrome] [--no-mp4]
+// Usage:  node src/run.mjs [--record] [--no-sandbox (only for root/CI containers)] [--scene A|G1..G5] [--headless] [--with-e] [--with-business] [--channel chrome] [--no-mp4]
 import { chromium } from "playwright";
 import { mkdirSync, renameSync, existsSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -25,6 +25,7 @@ const HEADLESS = flag("headless");
 const ONLY_SCENE = opt("scene");
 const CHANNEL = opt("channel") ?? process.env.DEMO_CHANNEL;
 if (flag("with-e")) cfg.includeSceneE = true;
+if (flag("with-business")) cfg.includeBusiness = true;
 if (flag("no-mp4")) cfg.makeMp4 = false;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -63,10 +64,20 @@ async function resetDemo() {
   if (s.overall?.spentCents !== 24000 || s.overall?.limitCents !== 30000) {
     throw new Error(`After reset the overall cap shows ${s.overall?.spentCents}/${s.overall?.limitCents} cents; expected 24000/30000.`);
   }
+  // The business profile (Harbour Print Co) is seeded alongside, with its own agents and cap.
+  const b = (await api("GET", BANK + BUSINESS_QUERY)).data;
+  const bnames = (b.registry ?? []).map((a) => a.name).sort().join(",");
+  if (bnames !== "Bill-pay agent,Marketing agent,Procurement agent") throw new Error(`After reset the business agents are "${bnames}". Is the app on the business-mode branch?`);
+  if (b.overall?.spentCents !== 170000 || b.overall?.limitCents !== 200000) {
+    throw new Error(`After reset the business cap shows ${b.overall?.spentCents}/${b.overall?.limitCents} cents; expected 170000/200000.`);
+  }
 }
 
+const BUSINESS_QUERY = "/api/agent/summary?customer=harbour-print-co";
+let summaryPath = "/api/agent/summary"; // switches to the business customer while a business scene plays
+
 async function findPolicy(agent, category, kind) {
-  const s = (await api("GET", BANK + "/api/agent/summary")).data;
+  const s = (await api("GET", BANK + summaryPath)).data;
   const mine = (s.agents ?? []).filter((a) => a.agentName === agent && (!category || a.category === category));
   const p = mine.find((a) => a.status === "ACTIVE") ?? (kind === undefined || kind === "buy" ? mine[0] : undefined);
   if (!p) throw new Error(`${agent} has no ${category ?? ""} mandate. The demo data does not look seeded.`);
@@ -275,13 +286,27 @@ async function claude() {
   });
 }
 
+// Use the real Personal/Business toggle, so the profile switch is visible in the video. The choice persists in the browser.
+async function ensureProfile(want) {
+  await D(`profile-${want}`).waitFor({ timeout: cfg.waitMs });
+  const pressed = await D(`profile-${want}`).getAttribute("aria-pressed");
+  if (pressed !== "true") await click(D(`profile-${want}`));
+  await page.waitForFunction((w) => document.querySelector(`[data-demo="profile-${w}"]`)?.getAttribute("aria-pressed") === "true", want, { timeout: cfg.waitMs });
+  await D("overall-cap").waitFor({ timeout: cfg.waitMs });
+  if (want === "business") await D("agent-Procurement agent").waitFor({ timeout: cfg.waitMs });
+  else await D("agent-ChatGPT").waitFor({ timeout: cfg.waitMs });
+}
+
 async function playScene(id, plan) {
   const defs = SCENES[id];
   if (!defs) throw new Error(`Scene ${id} is not defined in intentpay/app/demo/page.tsx`);
   const bt = captions.scenes[id] ?? { steps: {} };
+  const profile = defs.profile === "business" ? "business" : "personal";
+  summaryPath = profile === "business" ? BUSINESS_QUERY : "/api/agent/summary";
   await step(`scene ${id}: open Cards screen`, async () => {
     await go("/agent");
     await D("overall-cap").waitFor({ timeout: cfg.waitMs });
+    await ensureProfile(profile);
     await caption(bt.intro ?? defs.title); await pause(hold.short);
   });
   const idxs = plan.only ?? defs.steps.map((_, i) => i);
@@ -371,11 +396,12 @@ async function main() {
   await step("pre-checks", preChecks);
   await step("reset demo", resetDemo);
 
-  let plan = story.filter((s) => !s.optional || (s.id === "E" && cfg.includeSceneE));
+  let plan = story.filter((s) => !s.optional || (s.optional === "E" && cfg.includeSceneE) || (s.optional === "business" && cfg.includeBusiness));
   if (ONLY_SCENE) {
-    const id = ONLY_SCENE.length === 1 ? ONLY_SCENE.toUpperCase() : ONLY_SCENE.toLowerCase();
+    const up = ONLY_SCENE.toUpperCase();
+    const id = SCENES[up] ? up : ONLY_SCENE.toLowerCase();
     const found = story.find((s) => s.id === id) ?? (SCENES[id] ? { id } : null);
-    if (!found) throw new Error(`Unknown scene "${ONLY_SCENE}". Use A-F, home, intro, claude or outro.`);
+    if (!found) throw new Error(`Unknown scene "${ONLY_SCENE}". Use A-F, G1-G5, home, intro, claude or outro.`);
     plan = [found];
   }
 
