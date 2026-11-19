@@ -7,6 +7,7 @@ import { useSummary } from "@/app/components/useSummary";
 import { dollars } from "@/lib/format";
 import { ProfileToggle } from "@/app/components/ProfileToggle";
 import { useProfile } from "@/lib/profile";
+import { headroomCents, LEFT_LABEL } from "@/lib/headroom";
 import { BUSINESS_NAME } from "@/lib/business-data";
 
 function Account({ name, number, amount, note, amountLabel }: { name: string; number?: string; amount: string; note?: string; amountLabel?: string }) {
@@ -28,9 +29,8 @@ export default function Home() {
   const { data } = useSummary(5000);
   const profile = useProfile();
   const active = data?.agents.filter((a) => a.status === "ACTIVE") ?? [];
-  const budgetLeft = active.reduce((sum, a) => sum + a.remainingCents, 0);
   // Headroom: the smaller of the overall cap left and the sum of agent budgets left.
-  const headroom = data?.overall ? Math.min(data.overall.remainingCents, budgetLeft) : budgetLeft;
+  const headroom = headroomCents(data?.agents ?? [], data?.overall);
   const agentCount = data?.registry?.filter((r) => r.status === "ACTIVE").length ?? 0;
 
   return (
@@ -72,7 +72,7 @@ export default function Home() {
           <Account
             name="Agent Payment Control"
             amount={data ? dollars(headroom) : "…"}
-            amountLabel="left this week"
+            amountLabel={LEFT_LABEL[data?.overall?.period ?? "week"]}
             note={`${agentCount} ${agentCount === 1 ? "agent" : "agents"} · ${active.length} ${active.length === 1 ? "mandate" : "mandates"}`}
           />
         </Link>
